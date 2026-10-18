@@ -61,6 +61,9 @@ export default defineBackground(() => {
 	// message proxy - registered synchronously so the first TAB_CONTROL message
 	// after the SW wakes up is handled before async startup completes
 	chrome.runtime.onMessage.addListener((message, sender, sendResponse): true | undefined => {
+		// `offscreen:*` messages are for the offscreen document, which answers them. Replying here would
+		// win the race (first response wins) and hand the caller a bogus "Unknown message type".
+		if (typeof message?.type === 'string' && message.type.startsWith('offscreen:')) return
 		if (message.type === 'TAB_CONTROL') {
 			return handleTabControlMessage(message, sender as chrome.runtime.MessageSender, sendResponse)
 		} else if (message.type === 'PAGE_CONTROL') {

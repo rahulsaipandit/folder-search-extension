@@ -34,7 +34,6 @@ import { Toaster } from '@/components/ui/sonner'
 import { loadSettings } from '@/shared/settings'
 import { getAllSkills, getOrSeedSkills } from '@/skills/skill-store'
 
-import { DEMO_BASE_URL, isTestingEndpoint } from '../../agent/constants'
 import { useAgent } from '../../agent/useAgent'
 import { GenericTaskWidget } from '../../lib/scheduledWidgets'
 import { createWidgetInstance, registerWidget } from '../../lib/widgetRuntime'
@@ -52,6 +51,7 @@ import { HistoryAndFavorites } from './components/HistoryAndFavorites'
 import MemoryBrowser from './components/MemoryBrowser'
 import type { OrbState } from './components/PixelOrb'
 import type { AvatarState } from './components/RobotFace'
+import { FolderSearch } from './components/FolderSearch/FolderSearch'
 import { SkillChip } from './components/SkillChip'
 import { SkillManagerView } from './components/SkillManager/SkillManagerView'
 import { SkillPicker } from './components/SkillPicker'
@@ -80,7 +80,13 @@ export default function App() {
 	// Check URL parameters for initial view
 	const urlParams = new URLSearchParams(window.location.search)
 	const initialView = urlParams.get('view')
-	const defaultView: View = initialView === 'dashboard' ? { name: 'dashboard' } : { name: 'chat' }
+	// Folder Search is the landing view; `?view=chat` opens the agent chat directly.
+	const defaultView: View =
+		initialView === 'dashboard'
+			? { name: 'dashboard' }
+			: initialView === 'chat'
+				? { name: 'chat' }
+				: { name: 'folder-search' }
 
 	const [view, setView] = useState<View>(defaultView)
 
@@ -223,9 +229,6 @@ export default function App() {
 			historyRef.current.scrollTop = historyRef.current.scrollHeight
 		}
 	}, [history, activity])
-
-	const [demoAlertDismissed, setDemoAlertDismissed] = useState(false)
-	const showDemoAlert = !demoAlertDismissed && !!config && isTestingEndpoint(config.baseURL)
 
 	const handleMicClick = useCallback(async () => {
 		const vc = voiceRef.current
@@ -450,6 +453,10 @@ export default function App() {
 			)
 		}
 
+		if (view.name === 'folder-search') {
+			return <FolderSearch />
+		}
+
 		if (view.name === 'memory') {
 			return <MemoryBrowser onBack={() => setView({ name: 'chat' })} />
 		}
@@ -494,47 +501,6 @@ export default function App() {
 		return (
 			<div className="relative flex flex-col h-screen bg-background">
 				<Toaster />
-
-				{/* Demo Mode Alert */}
-				{showDemoAlert && (
-					<div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
-						<div className="bg-background border rounded-lg shadow-lg w-full max-w-xs flex flex-col gap-3 p-4">
-							<div className="flex flex-col gap-1">
-								<span className="text-sm font-semibold">Demo Mode</span>
-								<p className="text-xs text-foreground leading-relaxed">
-									This extension is connected to the demo service:
-								</p>
-								<code className="text-[10px] bg-muted rounded px-2 py-1 break-all font-mono text-foreground">
-									{DEMO_BASE_URL}
-								</code>
-								<p className="text-xs text-foreground leading-relaxed mt-1">
-									For privacy, switch to your own AI service and API key in Settings.
-								</p>
-							</div>
-							<div className="flex gap-2">
-								<Button
-									size="sm"
-									className="flex-1 h-8 text-xs cursor-pointer"
-									onClick={() => {
-										setDemoAlertDismissed(true)
-										setView({ name: 'settings' })
-									}}
-								>
-									<Settings className="size-3 mr-1" />
-									Settings
-								</Button>
-								<Button
-									size="sm"
-									variant="outline"
-									className="flex-1 h-8 text-xs cursor-pointer"
-									onClick={() => setDemoAlertDismissed(true)}
-								>
-									Continue Demo
-								</Button>
-							</div>
-						</div>
-					</div>
-				)}
 
 				<MotionOverlay active={isRunning} />
 				{/* Header */}

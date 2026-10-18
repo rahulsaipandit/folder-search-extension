@@ -24,6 +24,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { FolderSearchConfigRow } from '@/entrypoints/sidepanel/components/FolderSearch/ConfigRow'
 import { SUPPORTED_UI_LANGUAGES, UI_LANGUAGE_NATIVE_NAMES, useI18n } from '@/i18n'
 import { createLLMConfigFromProvider, getBaseURLForProvider } from '@/llm/providers/adapter'
 import { type UnifiedSettings, loadSettings, resetSettings, saveSettings } from '@/shared/settings'
@@ -912,6 +913,8 @@ export function ConfigPanel({ config, onSave, onClose, standalone = false }: Con
 					{saving ? <Loader2 className="size-3 animate-spin" /> : 'Save'}
 				</Button>
 			</div>
+
+			<FolderSearchConfigRow />
 
 			{/* Vault Settings */}
 			<div className="pt-3 border-t border-border/50">

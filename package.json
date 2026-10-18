@@ -13,6 +13,7 @@
         "packages/graph-viewer",
         "packages/mcp",
         "packages/extension",
+        "packages/e2e",
         "packages/companion-app",
         "packages/website"
     ],

@@ -238,6 +238,18 @@ Since allowlisting bypasses plugins, only add a host to `DEFAULT_ALLOWLIST` when
 
 `KeywordPlugin` requires **2+ distinct sensitive terms** in the text sample before blocking (single incidental mentions like one "tax return" reference are not enough) — see `SENSITIVE_TERM_PATTERNS` in `plugins.ts`.
 
+### Folder Search (`src/folder-search/`) — local, read-only visual RAG
+
+Design: `packages/extension/docs/designLocalFolderSearch.md`. User picks a folder via the File System Access API (`mode: 'read'` only), it is indexed on-device with EmbeddingGemma 2 (text/vision/audio in one 768-d space, Matryoshka-truncated to `settings.dim`), and queried through one box. Nothing is uploaded; the only network traffic is the user-approved model download.
+
+- **Split by context.** UI/pickers/permission/IndexedDB reads live in the side panel (`entrypoints/sidepanel/components/FolderSearch/`, plus `entrypoints/folder-search/` tab and `folder-search-settings/` Manage page). Everything heavy (embedder, extractors, indexer, vector matrices) runs in the **offscreen document** via `folder-search/engine.ts` (`offscreen:folder:*` messages) and is called from the UI only through `folder-search/bridge.ts`. Never import `browser-ml/gemma-embeddings.ts`, `indexer.ts`, `searchIndex.ts`, `modelManager.ts` or `extractors/{pdf,media,text}.ts` from UI code (CSP + bundle weight). `modelCatalog.ts`, `events.ts`, `types.ts`, `settings.ts`, `db.ts` and the pure helpers are safe for the UI.
+- **Handles are never sent through `chrome.runtime`.** The `FileSystemDirectoryHandle` is stored in IndexedDB (`folderSearch` DB, `idb`); the offscreen doc reads it from there. Progress goes the other way as `folder:event` broadcasts (`events.ts`).
+- **Pure, tested logic:** `classify.ts` (skip rules, secrets), `chunker.ts`, `diff.ts` (incremental rescan), `keywords.ts` (BM25-style + exact-string detection), `ranking.ts` (vector matrix, per-modality z-score calibration, RRF fusion, grouping), `merge.ts`, `walker.ts`, `ask.ts`, `extractors/pure.ts`. Keep new ranking/skip behaviour in these files with tests.
+- **Index validity.** `meta` stores an `IndexSignature` (model id, dtype, dim, schema). A mismatch makes `Indexer.run` throw `REINDEX_REQUIRED`; the UI offers an explicit re-index. Toggling the vision/audio encoders alone does not invalidate vectors.
+- **ID conventions** (`db.ts`): chunk ids `${fileId}#${idx}`, page images `${fileId}#p${page}`, filename postings `${fileId}#name`, audio/video units `${fileId}@${startSec}`. File ids may contain `#`/`@`; always split with `lastIndexOf` (see `chunkFileOf`/`unitFileOf` in `searchIndex.ts`).
+- **Ask mode** is optional and must resolve its LLM via `useScopedLLM` (text-only feature, honors `textLLMProvider`). Retrieval must keep working with no LLM configured.
+- `calibrate` priors in `ranking.ts` (`PRIOR_STATS`, `MIN_CALIBRATED`) are unmeasured starting points; tune them on a labeled sample before trusting thresholds.
+
 ### Adding a Widget
 
 Create a widget via `defineWidget()` in `src/lib/widgetRuntime.ts`, then call `registerWidget()` in App.tsx's `useEffect`.
@@ -272,7 +284,7 @@ If you need cosine similarity or other pure-math helpers on embedding vectors ou
 ## Testing
 
 - **Test value**: Do not add redundant tests or directly translate implementation code into assertions. Test meaningful behavior and realistic failure modes.
-- **Framework**: Vitest (unit tests only for now; future E2E goes to `packages/e2e/` with Playwright)
+- **Framework**: Vitest for unit tests; Playwright E2E in `packages/e2e/` (loads the built extension from `packages/extension/.output/dev/chrome-mv3-dev`; run `npm run test:build -w @page-agent/e2e` to rebuild and test)
 - **Location**: co-located, `src/foo.test.ts` next to `src/foo.ts`
 - **Coverage today**: `packages/llms` only — other packages will follow incrementally
 - **Adding tests to a new package**: create `vitest.config.ts` in the package and add a `"test": "vitest run"` script. Root `npm test` and `node scripts/ci.js` pick it up through npm workspaces.

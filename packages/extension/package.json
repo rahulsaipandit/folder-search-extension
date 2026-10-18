@@ -60,6 +60,7 @@
         "chalk": "^6.0.0",
         "defuddle-js": "^0.1.0",
         "dompurify": "^3.4.3",
+        "jszip": "^3.10.1",
         "localforage": "^1.10.0",
         "markdown-to-jsx": "^9.7.15",
         "pdfjs-dist": "^5.7.284",

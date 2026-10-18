@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Folder Search: side panel redesign</title>
+<style>
+:root{
+  --bg:#f3f1ee; --panel:#fffdfb; --ink:#1b1a1f; --muted:#5d5a66; --line:#e6e2dc;
+  --accent:#5b4ef0; --accent-ink:#fff; --chip:#f1effe; --chip-ink:#3d33c4; --soft:#f7f5f2;
+  --old-bg:#fff4f2; --btn:#171717;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#16151a; --panel:#1f1d25; --ink:#f2f0f7; --muted:#a9a5b8; --line:#33303d;
+    --accent:#8b80ff; --accent-ink:#14121f; --chip:#2a2748; --chip-ink:#cfcaff; --soft:#27242f;
+    --old-bg:#2a2022; --btn:#f2f0f7;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#16151a; --panel:#1f1d25; --ink:#f2f0f7; --muted:#a9a5b8; --line:#33303d;
+  --accent:#8b80ff; --accent-ink:#14121f; --chip:#2a2748; --chip-ink:#cfcaff; --soft:#27242f;
+  --old-bg:#2a2022; --btn:#f2f0f7;
+}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 "Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+  display:flex;flex-direction:column;align-items:center;gap:16px;padding:20px 12px 32px}
+.toggle{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:3px}
+.toggle button{border:0;background:none;color:var(--muted);font:inherit;font-weight:600;padding:8px 18px;border-radius:999px;cursor:pointer}
+.toggle button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.toggle button:focus-visible,.btn:focus-visible,.chip:focus-visible,.link:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+
+.panel{width:100%;max-width:380px;height:720px;background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  display:flex;flex-direction:column;overflow:hidden}
+.bar{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.ring{width:18px;height:18px;border-radius:50%;border:3px solid transparent;
+  background:linear-gradient(var(--panel),var(--panel)) padding-box,conic-gradient(#ff7ab6,#ffb86b,#6be3a0,#5b9bff,#a77bff,#ff7ab6) border-box}
+.bar b{font-weight:600;flex:1}
+.ico{width:32px;height:32px;display:grid;place-items:center;border-radius:8px;color:var(--muted);background:none;border:0;cursor:pointer}
+.ico:hover{background:var(--soft)}
+.ico svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+.body{flex:1;overflow-y:auto;padding:24px 20px 12px;display:flex;flex-direction:column}
+h1{font-size:24px;line-height:1.2;margin:0 0 8px;letter-spacing:-.01em}
+.sub{margin:0 0 20px;color:var(--muted)}
+.badge{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--chip-ink);background:var(--chip);padding:4px 10px;border-radius:999px;margin-bottom:14px;align-self:flex-start}
+.badge svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+.search{display:flex;align-items:center;gap:10px;border:1.5px solid var(--line);background:var(--soft);border-radius:12px;padding:12px 14px;color:var(--muted);margin-bottom:12px}
+.search svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:24px}
+.chip{border:0;background:var(--chip);color:var(--chip-ink);font:inherit;font-size:13.5px;padding:7px 12px;border-radius:999px;cursor:pointer}
+.chip:hover{filter:brightness(.96)}
+
+.points{list-style:none;margin:0;padding:0;display:grid;gap:14px}
+.points li{display:flex;gap:12px;align-items:flex-start}
+.pi{flex:none;width:32px;height:32px;border-radius:8px;background:var(--chip);color:var(--accent);display:grid;place-items:center}
+.pi svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.points b{display:block;font-size:14.5px}
+.points span{color:var(--muted);font-size:13.5px}
+
+.cta{padding:14px 20px 18px;border-top:1px solid var(--line);background:var(--panel)}
+.btn{width:100%;height:46px;border:0;border-radius:12px;background:var(--accent);color:var(--accent-ink);font:inherit;font-weight:600;
+  display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;transition:transform .08s,filter .15s}
+.btn:hover{filter:brightness(1.08)}.btn:active{transform:scale(.985)}
+.btn svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.helper{margin:8px 0 0;text-align:center;font-size:12.5px;color:var(--muted)}
+.link{display:block;text-align:center;margin-top:6px;color:var(--accent);font-weight:600;font-size:13.5px;text-decoration:none;padding:4px}
+.link:hover{text-decoration:underline}
+
+/* original */
+.old{background:var(--old-bg)}
+.old .bar{border:0;background:var(--old-bg)}
+.old .body{padding:10px}
+.old .card{background:#fff;color:#1b1a1f;border:1px solid #e8e8e8;border-radius:14px;padding:24px}
+.old h3{margin:0 0 14px;font-size:18px}
+.old p{margin:0 0 14px;color:#8a8a8a}
+.old ul{list-style:none;margin:0 0 18px;padding:0;line-height:1.9}
+.old .ob{width:100%;height:48px;border:0;border-radius:10px;background:#171717;color:#fff;font-weight:600;font:inherit}
+.old .ob{font-weight:600}
+.hide{display:none}
+</style>
+</head>
+<body>
+<div class="toggle" role="group" aria-label="Version">
+  <button id="bNew" aria-pressed="true">Redesign</button>
+  <button id="bOld" aria-pressed="false">Original</button>
+</div>
+
+<section class="panel" id="pNew" aria-label="Redesigned panel">
+  <div class="bar">
+    <span class="ring"></span><b>Folder Search</b>
+    <button class="ico" aria-label="Open in tab"><svg viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></button>
+    <button class="ico" aria-label="Settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+  </div>
+  <div class="body">
+    <span class="badge"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Private, on your device</span>
+    <h1>Find any file by describing it</h1>
+    <p class="sub">Search your folder in plain English. Nothing leaves your computer.</p>
+
+    <div class="search" aria-disabled="true">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <span id="ph">Choose a folder to start searching</span>
+    </div>
+    <div class="chips" aria-label="Example searches">
+      <button class="chip">beach photo with dog</button>
+      <button class="chip">Q3 invoice from Acme</button>
+      <button class="chip">slides about onboarding</button>
+    </div>
+
+    <ul class="points">
+      <li><span class="pi"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></span><div><b>Runs on your device</b><span>Indexing and search happen locally.</span></div></li>
+      <li><span class="pi"><svg viewBox="0 0 24 24"><path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.500 7-4.500 7-9V6z"/><path d="m9 12 2 2 4-4"/></svg></span><div><b>Read-only</b><span>Files are never uploaded or changed.</span></div></li>
+      <li><span class="pi"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span><div><b>You pick the folder</b><span>Only that folder is ever searched.</span></div></li>
+    </ul>
+  </div>
+  <div class="cta">
+    <button class="btn"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Choose a folder</button>
+    <p class="helper">Takes about a minute for 1,000 files.</p>
+    <a class="link" href="#" onclick="return false">Try a sample folder</a>
+  </div>
+</section>
+
+<section class="panel old hide" id="pOld" aria-label="Original panel">
+  <div class="bar"><span class="ring"></span><b>sample-extension</b></div>
+  <div class="body">
+    <div class="card">
+      <h3>Find files by describing them</h3>
+      <p>Try “beach photo with dog” or “Q3 invoice from Acme”.</p>
+      <ul><li>✓ Runs entirely on your device</li><li>✓ Files are never uploaded or changed</li><li>✓ You choose the folder</li></ul>
+      <button class="ob">Get started</button>
+    </div>
+  </div>
+</section>
+
+<script>
+const n=document.getElementById('pNew'),o=document.getElementById('pOld'),bn=document.getElementById('bNew'),bo=document.getElementById('bOld');
+function show(v){const isNew=v==='new';n.classList.toggle('hide',!isNew);o.classList.toggle('hide',isNew);
+  bn.setAttribute('aria-pressed',isNew);bo.setAttribute('aria-pressed',!isNew)}
+bn.onclick=()=>show('new');bo.onclick=()=>show('old');
+const ph=document.getElementById('ph');
+document.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{ph.textContent='“'+c.textContent+'”'});
+</script>
+</body>
+</html>

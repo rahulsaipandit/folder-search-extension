@@ -10,6 +10,7 @@ import { embeddings } from '@/browser-ml/embeddings'
 import { BrowserVectorSearch } from '@/browser-ml/vector-search'
 import { BrowserClustering } from '@/browser-ml/clustering'
 import { storage } from '@/browser-ml/storage'
+import { handleFolderMessage } from '@/folder-search/engine'
 
 type OffscreenMessage = {
 	type: string
@@ -22,6 +23,8 @@ const clusteringInstance = new BrowserClustering()
 
 async function handleMessage(message: OffscreenMessage): Promise<unknown> {
 	const { type } = message
+
+	if (type.startsWith('offscreen:folder:')) return handleFolderMessage(type, message)
 
 	switch (type) {
 		case 'offscreen:embed': {

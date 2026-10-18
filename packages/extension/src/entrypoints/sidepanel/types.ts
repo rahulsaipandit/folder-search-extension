@@ -10,3 +10,4 @@ export type View =
 	| { name: 'memory' }
 	| { name: 'skill-manager' }
 	| { name: 'how-do-i' }
+	| { name: 'folder-search' }

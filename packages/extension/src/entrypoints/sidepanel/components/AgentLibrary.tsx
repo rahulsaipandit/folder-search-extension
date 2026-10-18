@@ -7,6 +7,7 @@ import {
 	ExternalLink,
 	Eye,
 	FileDiff,
+	FolderSearch2,
 	HelpCircle,
 	Laugh,
 	Library,
@@ -51,12 +52,21 @@ const SPECIAL_SKILL_ROUTES: Record<
 	'epoch-converter': { tabUrl: '/epoch-converter.html' },
 	'skill-manager': { panelView: 'skill-manager' },
 	'how-do-i': { panelView: 'how-do-i' },
+	'folder-search': { panelView: 'folder-search' },
 	// 'seo-rank-tracker': { tabUrl: 'seo-tracker.html' }, — card disabled, see note above skills array
 	// 'chrome-extension-ranker': { tabUrl: 'extension-ranker.html' }, — card disabled, see note above skills array
 	'phone-simulator': { tabUrl: '/phone-simulator.html' },
 }
 
 const skills = [
+	{
+		id: 'folder-search',
+		name: 'Folder Search',
+		desc: 'Search your photos and documents by meaning. Private: runs on your device',
+		icon: FolderSearch2,
+		color: 'emerald',
+		isSpecial: true,
+	},
 	{
 		id: 'how-do-i',
 		name: 'How do I?',

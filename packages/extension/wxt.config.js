@@ -34,7 +34,31 @@ function copyPyodideAssets() {
 	}
 }
 
-const chromeProfile = '.wxt/chrome-data'
+/**
+ * Copies the ONNX Runtime loader + wasm into `public/ort/` so transformers.js can load them from
+ * the extension origin (CDN and blob: loads are blocked by the extension-pages CSP). Runs for both
+ * `wxt` (dev) and `wxt build`. See browser-ml/gemma-embeddings.ts.
+ */
+function copyOrtAssets() {
+	return {
+		name: 'copy-ort-assets',
+		buildStart() {
+			const src = resolve(__dirname, '../../node_modules/onnxruntime-web/dist')
+			const dest = resolve(__dirname, 'public/ort')
+			mkdirSync(dest, { recursive: true })
+			for (const file of ['ort-wasm-simd-threaded.asyncify.mjs', 'ort-wasm-simd-threaded.asyncify.wasm']) {
+				try {
+					copyFileSync(join(src, file), join(dest, file))
+				} catch (e) {
+					// Missing runtime files would otherwise surface later as an opaque "no available backend".
+					this.error(`copy-ort-assets: cannot copy ${file} from ${src}: ${e.message}`)
+				}
+			}
+		},
+	}
+}
+
+const chromeProfile ='.wxt/chrome-data'
 mkdirSync(chromeProfile, { recursive: true })
 
 const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'))
@@ -45,7 +69,12 @@ export default defineConfig({
 	alias: {
 		'@': resolve(__dirname, 'src'),
 	},
-	outDir: process.env.NODE_ENV === 'production' ? '.output/prod' : '.output/dev',
+	// The E2E build swaps in a fake embedder (folder-search/fakeEmbedder.ts); keep it out of the real outputs.
+	outDir: process.env.WXT_E2E_FAKE_EMBEDDER
+		? '.output/e2e'
+		: process.env.NODE_ENV === 'production'
+			? '.output/prod'
+			: '.output/dev',
 	modules: ['@wxt-dev/module-react'],
 	webExt: {
 		// chromiumProfile: chromeProfile,
@@ -61,7 +90,7 @@ export default defineConfig({
 				'@': resolve(__dirname, 'src'),
 			},
 		},
-		plugins: [tailwindcss(), copyPyodideAssets()],
+		plugins: [tailwindcss(), copyPyodideAssets(), copyOrtAssets()],
 		define: {
 			__VERSION__: JSON.stringify(pkg.version),
 			// Aliases used by ConfigPanel to display version info in the footer

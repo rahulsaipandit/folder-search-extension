@@ -1,6 +1,16 @@
 # Local Folder Search (Visual RAG over a User-Selected Folder)
 
-Status: **Design proposal** (no code yet). Date: 2026-10-18.
+Status: **Implemented (all three phases), not yet validated in a real browser.** Date: 2026-10-18.
+
+Implementation notes (deviations from the proposal below):
+
+- Storage uses `idb` (already a dependency, like `lib/db.ts`), not Dexie. The `files`/`chunks`/`imageVectors`/`keywords`/`meta` stores follow §3.4; added `mediaUnits` for audio/video and `byHash` for duplicates.
+- Vector search is brute force over contiguous `Float32Array`s (`ranking.ts` `VectorMatrix`); no benchmark has been run, so the 50k-vector ceiling in §3.4 is still an estimate.
+- Calibration (§6.2) z-scores each query against the folder's own score distribution, shrunk toward unmeasured priors for tiny indexes. Priors and the 2.5σ display threshold need tuning on labeled data (§13).
+- Keyword scoring is BM25 without length normalization (chunk lengths are bounded by the chunker).
+- Strings are English literals in the components (the existing i18n catalog only carries the interface-language keys); moving them behind `t()` is outstanding work (§4A.4).
+- `unlimitedStorage` (§8, §13.5) is **not** added to the manifest; that is a Web Store posture decision.
+- The EmbeddingGemma 2 calls in `browser-ml/gemma-embeddings.ts` follow the ONNX model card but have only been compile- and bundle-checked, never executed.
 
 ## 1. Goal
 
@@ -127,8 +137,14 @@ Card quality vs fp32 (worst-case cosine): q8 0.9997, q4/q4f16 0.975 (text 0.988)
 recommends **q4 for browsers**, q8/fp16 when quality matters more. Defaults here:
 
 - **Documents + images: text q4 + vision q4 ≈ 283 MB** one-time download (consent screen shows this).
-- Audio/video encoder (+189 MB) is an optional add-on (phase 2, see §12), same consent pattern.
+- Audio encoder is an optional add-on (phase 2, see §12), same consent pattern, **always q8**
+  (+340 MB; the card says audio suffers most from quantization, so it is not tied to the q4/q8
+  choice). Video needs only the vision encoder; a video's soundtrack additionally needs the audio encoder.
 - Offer "High quality (q8, ~509 MB)" as an option. Record dtype in `meta` (index invalid if changed).
+- **WebGPU is required** (decided 2026-10-18, see §14.5). q4/q8 do not run on the WASM backend, so
+  there is no silent CPU path. Only if WebGPU is missing or fails to initialize do we ask the user,
+  with explicit sizes, to approve an **fp16 CPU fallback** (text 543 MB + vision 336 MB, audio stays
+  q8). Without that approval nothing is downloaded for the CPU path.
 
 ### 3.3 Where code runs
 
@@ -188,7 +204,9 @@ existing `BrowserVectorSearch` index. Decide with a benchmark, not upfront.
      locally and one-time, that files never leave the device.
    - Checkboxes: Documents model / Images model. Buttons: **Download & continue** / Cancel.
    - Progress bar with per-file progress, pause-less cancel, and retry on failure (errors shown).
-   - WebGPU unavailable → warn and offer slower WASM/CPU path (existing `devicePreference`).
+   - WebGPU unavailable (no adapter) or failing to initialize → the model download is blocked and
+     the screen explains why; a separate, explicit **"Allow CPU fallback (fp16, ~N GB, much slower)"**
+     action is offered (§14.5). Nothing is downloaded until the user approves it.
 3. **Step 2 – Folder pick:** "Choose folder" button → `showDirectoryPicker({mode:'read', id:'folder-search'})`.
    Show a summary pre-scan: file counts by kind, total size, estimated time. Confirm → **Start indexing**.
 4. **Step 3 – Indexing** runs in background; user can search immediately against what is
@@ -287,8 +305,8 @@ A stepper header `1 Model · 2 Folder · 3 Index` appears from here on.
 │ Total: 283 MB · from huggingface.co     │
 │ Quality: (•) Fast (q4) ( ) High (q8)    │
 │                                         │
-│ ⚠ No WebGPU detected: indexing will be  │  only if WebGPU is missing
-│   slower.                               │
+│ ⚠ WebGPU is required but unavailable.   │  only if WebGPU is missing/fails:
+│   [ Allow CPU fallback (fp16, 0.9 GB) ] │  Download is disabled until approved
 │                                         │
 │   [ Cancel ]   [ Download & continue ]  │
 └─────────────────────────────────────────┘
@@ -406,7 +424,7 @@ deleted. Original files are never touched, and the dialog says so.
 
 | State | UI |
 | --- | --- |
-| No WebGPU | Banner on consent + indexing: slower WASM path, ETA shown |
+| No WebGPU / WebGPU init fails | Consent screen blocks download and offers the approval-gated fp16 CPU fallback (§14.5); once approved, banner shows "CPU mode (slow)" |
 | Model download failed / offline | Error text + Retry; search disabled with the reason |
 | Indexing paused (user, or browser suspended the offscreen doc) | Banner "Paused · Resume" |
 | Partial index | Results marked "Partial index" until done |
@@ -607,8 +625,9 @@ Numbers are goals, not measurements — benchmark on a mid-range laptop before p
    remove-folder.
 2. **Quality:** DOCX, score calibration, filters, duplicate detection,
    lightbox polish, exclude-pattern UI.
-   Also **audio/video** search: add the audio encoder (+189 MB), `load_audio`/`load_video`, 30 s
-   windows / ~1 fps frames, results with timestamps.
+   Also **audio/video** search: add the audio encoder (q8, +340 MB), 30 s audio windows, and video
+   as **one segment per minute (≤16 frames) through the `videos` modality**, plus a separate
+   soundtrack vector per 30 s window; results carry timestamps (§14.5).
 3. **Answers:** cited "Ask" mode via text LLM, multi-folder, image captions as text.
 
 ## 13. Open questions
@@ -622,3 +641,84 @@ Numbers are goals, not measurements — benchmark on a mid-range laptop before p
 4. Panel-only vs. also a full-tab page? (Recommend both, sharing components.)
 5. Is `unlimitedStorage` acceptable for the Web Store review posture?
 6. "Open file" beyond object URLs (native messaging)? Recommend no for v1.
+
+## 14. Runtime lessons and review against an independent implementation
+
+Source: tpiros.dev, "EmbeddingGemma 2 in the browser" (fetched 2026-10-18), a browser app using the
+same ONNX export and transformers.js 4.3.1. It is a second data point, not a spec; its numbers come
+from a ~20-file test set.
+
+### 14.1 Fixes already made
+
+- **ONNX Runtime must be local (CSP).** transformers.js defaults `wasmPaths` to jsdelivr and
+  re-wraps the loader as a `blob:` URL; `script-src 'self'` blocks both, giving "no available
+  backend … Failed to fetch dynamically imported module: blob:…". Now `copyOrtAssets`
+  (`wxt.config.js`) copies `ort-wasm-simd-threaded.asyncify.{mjs,wasm}` to `public/ort/`,
+  `gemma-embeddings.ts` points `wasmPaths` there and sets `useWasmCache = false`. The article
+  reached the same conclusion (bundles the wasm locally).
+- **Batches stay under ~2,600 tokens** (limit ~2,700). Text batches are planned from real token
+  counts with padding counted as `items × longest` (`folder-search/batching.ts`); images use
+  `max_soft_tokens = 280` and batches of 4. The article uses the same budget and padding rule.
+  Token costs it reports: text ≈ 1/subword, image ≤ 280, video frame 140, audio 25/s (our 30 s
+  window ≈ 750).
+- **Nested lists for the processor.** `processor(null, [[a], [b]])` yields two vectors,
+  `processor(null, [a, b])` one blended vector, silently. `embedImages` wraps each image.
+
+### 14.2 Where we agree
+
+Selective encoder loading via `config.vision_config/audio_config = null`; `AutoModel` +
+`AutoProcessor` rather than the pipeline; `sentence_embedding` output; query/document prefixes only
+on text; re-normalize after Matryoshka truncation; 256 dims as the default; brute-force dot product
+(no ANN index; its 100k-vector estimate is unmeasured, like ours); best-segment scoring per
+file with the winning timestamp kept.
+
+### 14.3 Gaps and decisions
+
+| Finding | Our state | Recommendation |
+| --- | --- | --- |
+| **WASM/CPU cannot run q4/q8.** The article hit a missing `GatherBlockQuantized` kernel in ONNX Runtime WASM 1.31.0-dev for every quantized text and vision variant; it fell back to **fp16** (about 1.2 GB) and measured 403 s vs 26 s on WebGPU for a small set. | We offer a "slower CPU path" and the consent screen said so. That was wrong: with q4/q8 the load will fail. The consent warning now says so; images go one per call on WASM. | **Decided (§14.5):** require WebGPU; offer an approval-gated fp16 fallback only if WebGPU does not work. |
+| **Audio is the most quantization-sensitive** (model card); the article keeps audio at q8 and the rest at q4. | Audio uses the same dtype as the rest (q4 by default). | **Decided (§14.5):** audio encoder pinned to q8 (+151 MB over q4). |
+| **Full 768-d vectors stored, truncated at search time.** | We truncate at index time (stored `dim`, default 256; ~3× less storage). Changing `dim` forces a re-index. | Keep ours for storage cost; accept the re-index. Revisit if users want to tune dimensions. |
+| **Video** is segmented per minute (≤16 frames) and sent through the `videos` modality; soundtracks get their own vector. | We embed ~1 frame/s as independent images (up to 600 per file) and ignore the soundtrack. Slower to index, more vectors, and speech in videos is not searchable. | **Decided (§14.5):** segment per minute (≤16 frames) via the `videos` modality, plus soundtrack vectors. |
+| **Audio chunks** of ≤100 s. | 30 s windows (finer timestamps, ~3× more vectors). | Keep; it matches "open at the moment" better. |
+| **Inference in a Web Worker** (workers lack `AudioContext`/`<video>`, so the page decodes media). | Inference runs on the offscreen document's main thread (no UI to block), and media decoding runs in the same page. | Fine for now. Pause/cancel are cooperative between awaits, so a very long single model call delays them. |
+| **Image queries weight colour and texture heavily.** | Not handled. | Mention in help text; no code change. |
+| **No similarity threshold or calibration** is given; results are just ranked. | We drop hits below 2.5 σ over each modality's own score distribution. | Priors and the cutoff remain untuned (§6.2); the article offers no evidence either way. |
+
+### 14.5 Decisions taken (2026-10-18)
+
+1. **WebGPU required; fp16 CPU fallback only with approval.**
+   - Probe `navigator.gpu.requestAdapter()` before any download. No adapter, or a WebGPU error while
+     loading, blocks the normal download and shows why.
+   - The user may then explicitly approve the fallback: text + vision as fp16 (543 + 336 MB), audio
+     q8 (340 MB), run on the WASM backend. The approval is stored (`cpuFallbackApproved`) and can be
+     revoked in Manage. Nothing for the CPU path is downloaded before approval.
+   - dtype `fp16` is part of the index signature, so switching between WebGPU (q4/q8) and CPU
+     (fp16) requires a re-index, as any dtype change does.
+   - CPU mode embeds one image per call (batches ran out of WASM memory) and is expected to be
+     more than 10× slower (the article measured 26 s vs 403 s).
+2. **Audio encoder is always q8**, independent of the q4/q8 choice. Consent sizes and status checks
+   use the per-component dtype.
+3. **Video** goes through the `videos` modality, not independent frames:
+   - one segment per 60 s, up to 16 frames evenly spaced inside it (16 × 140 tokens = 2,240, under
+     the batch budget), one segment per model call; each segment is one vector with its start time;
+   - the soundtrack is embedded separately as 30 s audio windows (needs the audio encoder, and is
+     skipped with a note for files over 200 MB or without an audio track);
+   - a file is scored by its best segment or soundtrack window, and the timestamp is kept;
+   - at most 120 segments (2 h) are indexed per file, with a note.
+   - nesting rules, confirmed in the transformers.js 4.3.1 processor source: a flat list of
+     **images** is one sample (wrap each image: `[[img]]`), while a flat list of **audio clips or
+     videos** is one sample per item. Audio and video are embedded one item per call.
+
+### 14.4 Still unverified here
+
+Nothing in this repo has executed the EmbeddingGemma calls in a real browser. In particular:
+
+- the `max_soft_tokens` property on the image processor;
+- the `RawVideo` path (`processor(null, null, null, [video])`) and the ~140 tokens/frame figure that
+  keeps a 16-frame segment under the batch budget;
+- decoding a video's soundtrack with `AudioContext.decodeAudioData` on the video file;
+- the `probeWebGPU()` adapter check and WebGPU behaviour inside an offscreen document;
+- the fp16 CPU path end to end (file names `*_fp16.onnx`, memory use, the one-image-per-call rule).
+
+The nesting rules for audio and video were checked against the library source, not by running them.

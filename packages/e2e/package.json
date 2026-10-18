@@ -1,0 +1,14 @@
+{
+    "name": "@page-agent/e2e",
+    "private": true,
+    "version": "1.12.4",
+    "type": "module",
+    "scripts": {
+        "build:ext": "node build-extension.mjs",
+        "test": "playwright test",
+        "test:build": "node build-extension.mjs && playwright test"
+    },
+    "devDependencies": {
+        "@playwright/test": "^1.55.0"
+    }
+}
