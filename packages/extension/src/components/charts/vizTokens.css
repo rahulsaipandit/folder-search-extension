@@ -1,0 +1,52 @@
+/*
+ * Chart color tokens - validated against dataviz skill's reference palette
+ * (references/palette.md). Run `node scripts/validate_palette.js` before changing any hex here.
+ *
+ * Scoped to `.viz-root` rather than the app's shadcn theme tokens (--primary, etc.) because chart
+ * color has its own validated categorical/status/diverging rules that are independent of the
+ * brand accent color used elsewhere in the UI.
+ */
+.viz-root {
+	--viz-surface: #fcfcfb;
+	--viz-text-primary: #0b0b0b;
+	--viz-text-secondary: #52514e;
+	--viz-muted: #898781;
+	--viz-grid: #e1e0d9;
+	--viz-axis: #c3c2b7;
+
+	/* Categorical, fixed order - never cycle or reassign by rank. */
+	--viz-series-1: #2a78d6; /* blue */
+	--viz-series-2: #eb6834; /* orange */
+	--viz-series-3: #1baf7a; /* aqua */
+	--viz-series-4: #eda100; /* yellow */
+
+	/* Diverging pair (blue <-> red) + neutral midpoint. */
+	--viz-diverging-pos: #2a78d6;
+	--viz-diverging-neg: #e34948;
+	--viz-diverging-mid: #f0efec;
+
+	/* Status - fixed, never themed, never reused as a categorical slot. */
+	--viz-status-good: #0ca30c;
+	--viz-status-critical: #d03b3b;
+}
+
+.dark .viz-root {
+	--viz-surface: #1a1a19;
+	--viz-text-primary: #ffffff;
+	--viz-text-secondary: #c3c2b7;
+	--viz-muted: #898781;
+	--viz-grid: #2c2c2a;
+	--viz-axis: #383835;
+
+	--viz-series-1: #3987e5;
+	--viz-series-2: #d95926;
+	--viz-series-3: #199e70;
+	--viz-series-4: #c98500;
+
+	--viz-diverging-pos: #3987e5;
+	--viz-diverging-neg: #e66767;
+	--viz-diverging-mid: #383835;
+
+	--viz-status-good: #0ca30c;
+	--viz-status-critical: #e66767;
+}

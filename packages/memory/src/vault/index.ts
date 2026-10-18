@@ -1,0 +1,12 @@
+export { MCPVaultClient } from './MCPVaultClient'
+export type { MCPVaultConfig } from './MCPVaultClient'
+export { NullVaultProvider } from './NullVaultProvider'
+export { ObsidianVaultProvider } from './ObsidianVaultProvider'
+export type { ObsidianVaultConfig } from './ObsidianVaultProvider'
+// Browser-compatible providers (no Node.js deps)
+export { ObsidianRestVaultProvider } from './ObsidianRestVaultProvider'
+export type { ObsidianRestConfig } from './ObsidianRestVaultProvider'
+export { GitHubVaultProvider } from './GitHubVaultProvider'
+export type { GitHubVaultConfig } from './GitHubVaultProvider'
+export { toMkdf, fromMkdf } from './MkdfAdapter'
+export type { MkdfDocument, MkdfFrontmatter } from './MkdfAdapter'

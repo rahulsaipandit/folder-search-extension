@@ -1,0 +1,502 @@
+{
+  "apple/iphone_13_14": {
+    "imageWidth": 880,
+    "imageHeight": 1768,
+    "screen": {
+      "x": 18,
+      "y": 13,
+      "width": 844,
+      "height": 1742
+    }
+  },
+  "apple/iphone_13-mini": {
+    "imageWidth": 844,
+    "imageHeight": 1700,
+    "screen": {
+      "x": 18,
+      "y": 13,
+      "width": 808,
+      "height": 1675
+    }
+  },
+  "apple/iphone_14_15-pro": {
+    "imageWidth": 880,
+    "imageHeight": 1784,
+    "screen": {
+      "x": 22,
+      "y": 13,
+      "width": 836,
+      "height": 1758
+    }
+  },
+  "apple/iphone_15": {
+    "imageWidth": 876,
+    "imageHeight": 1784,
+    "screen": {
+      "x": 16,
+      "y": 11,
+      "width": 844,
+      "height": 1762
+    }
+  },
+  "apple/iphone_16": {
+    "imageWidth": 876,
+    "imageHeight": 1784,
+    "screen": {
+      "x": 16,
+      "y": 11,
+      "width": 844,
+      "height": 1762
+    }
+  },
+  "apple/iphone_16-plus": {
+    "imageWidth": 958,
+    "imageHeight": 1952,
+    "screen": {
+      "x": 18,
+      "y": 12,
+      "width": 922,
+      "height": 1928
+    }
+  },
+  "apple/iphone_16-pro": {
+    "imageWidth": 880,
+    "imageHeight": 1804,
+    "screen": {
+      "x": 18,
+      "y": 12,
+      "width": 844,
+      "height": 1780
+    }
+  },
+  "apple/iphone_16-pro-max": {
+    "imageWidth": 962,
+    "imageHeight": 1972,
+    "screen": {
+      "x": 19,
+      "y": 13,
+      "width": 924,
+      "height": 1946
+    }
+  },
+  "apple/iphone_17": {
+    "imageWidth": 872,
+    "imageHeight": 1808,
+    "screen": {
+      "x": 17,
+      "y": 12,
+      "width": 838,
+      "height": 1784
+    }
+  },
+  "apple/iphone_17e": {
+    "imageWidth": 880,
+    "imageHeight": 1772,
+    "screen": {
+      "x": 20,
+      "y": 14,
+      "width": 840,
+      "height": 1744
+    }
+  },
+  "apple/iphone_17-pro": {
+    "imageWidth": 872,
+    "imageHeight": 1808,
+    "screen": {
+      "x": 18,
+      "y": 12,
+      "width": 836,
+      "height": 1784
+    }
+  },
+  "apple/iphone_17-pro-max": {
+    "imageWidth": 952,
+    "imageHeight": 1976,
+    "screen": {
+      "x": 19,
+      "y": 14,
+      "width": 914,
+      "height": 1949
+    }
+  },
+  "apple/iphone_5": {
+    "imageWidth": 754,
+    "imageHeight": 1576,
+    "screen": {
+      "x": 4,
+      "y": 4,
+      "width": 750,
+      "height": 1572
+    }
+  },
+  "apple/iphone_6": {
+    "imageWidth": 868,
+    "imageHeight": 1756,
+    "screen": {
+      "x": 21,
+      "y": 8,
+      "width": 833,
+      "height": 1738
+    }
+  },
+  "apple/iphone_air": {
+    "imageWidth": 920,
+    "imageHeight": 1892,
+    "screen": {
+      "x": 20,
+      "y": 13,
+      "width": 880,
+      "height": 1866
+    }
+  },
+  "apple/iphone_se-3": {
+    "imageWidth": 862,
+    "imageHeight": 1724,
+    "screen": {
+      "x": 7,
+      "y": 0,
+      "width": 848,
+      "height": 1724
+    }
+  },
+  "apple/iphone_x": {
+    "imageWidth": 864,
+    "imageHeight": 1728,
+    "screen": {
+      "x": 5,
+      "y": 0,
+      "width": 854,
+      "height": 1728
+    }
+  },
+  "android/google/pixel-8": {
+    "imageWidth": 812,
+    "imageHeight": 1692,
+    "screen": {
+      "x": 28,
+      "y": 23,
+      "width": 756,
+      "height": 1648
+    }
+  },
+  "android/google/pixel-9": {
+    "imageWidth": 805,
+    "imageHeight": 1693,
+    "screen": {
+      "x": 20,
+      "y": 15,
+      "width": 764,
+      "height": 1663
+    }
+  },
+  "android/google/pixel-9-pro": {
+    "imageWidth": 946,
+    "imageHeight": 1984,
+    "screen": {
+      "x": 25,
+      "y": 19,
+      "width": 896,
+      "height": 1946
+    }
+  },
+  "android/google/pixel-9-pro-xl": {
+    "imageWidth": 990,
+    "imageHeight": 2078,
+    "screen": {
+      "x": 26,
+      "y": 20,
+      "width": 938,
+      "height": 2038
+    }
+  },
+  "android/huawei/mate-x6": {
+    "imageWidth": 2360,
+    "imageHeight": 2556,
+    "screen": {
+      "x": 4,
+      "y": 3,
+      "width": 2349,
+      "height": 2553
+    }
+  },
+  "android/huawei/mate-xt-ultimate": {
+    "imageWidth": 3320,
+    "imageHeight": 2360,
+    "screen": {
+      "x": 36,
+      "y": 21,
+      "width": 3273,
+      "height": 2317
+    }
+  },
+  "android/infinix/hot-50-pro": {
+    "imageWidth": 800,
+    "imageHeight": 1720,
+    "screen": {
+      "x": 13,
+      "y": 13,
+      "width": 775,
+      "height": 1700
+    }
+  },
+  "android/infinix/note-60-pro": {
+    "imageWidth": 878,
+    "imageHeight": 1822,
+    "screen": {
+      "x": 24,
+      "y": 12,
+      "width": 838,
+      "height": 1799
+    }
+  },
+  "android/motorola/edge-60-fusion": {
+    "imageWidth": 858,
+    "imageHeight": 1868,
+    "screen": {
+      "x": 7,
+      "y": 14,
+      "width": 827,
+      "height": 1840
+    }
+  },
+  "android/oneplus/13": {
+    "imageWidth": 882,
+    "imageHeight": 1862,
+    "screen": {
+      "x": 11,
+      "y": 17,
+      "width": 859,
+      "height": 1829
+    }
+  },
+  "android/oneplus/15": {
+    "imageWidth": 920,
+    "imageHeight": 1904,
+    "screen": {
+      "x": 7,
+      "y": 0,
+      "width": 905,
+      "height": 1904
+    }
+  },
+  "android/oneplus/nord-ce5": {
+    "imageWidth": 776,
+    "imageHeight": 1654,
+    "screen": {
+      "x": 18,
+      "y": 21,
+      "width": 745,
+      "height": 1625
+    }
+  },
+  "android/samsung/galaxy-a56": {
+    "imageWidth": 800,
+    "imageHeight": 1644,
+    "screen": {
+      "x": 20,
+      "y": 20,
+      "width": 759,
+      "height": 1613
+    }
+  },
+  "android/samsung/galaxy-s22": {
+    "imageWidth": 805,
+    "imageHeight": 1629,
+    "screen": {
+      "x": 21,
+      "y": 14,
+      "width": 761,
+      "height": 1603
+    }
+  },
+  "android/samsung/galaxy-s25": {
+    "imageWidth": 791,
+    "imageHeight": 1612,
+    "screen": {
+      "x": 19,
+      "y": 12,
+      "width": 752,
+      "height": 1588
+    }
+  },
+  "android/samsung/galaxy-s25-plus": {
+    "imageWidth": 1052,
+    "imageHeight": 2148,
+    "screen": {
+      "x": 24,
+      "y": 17,
+      "width": 1002,
+      "height": 2114
+    }
+  },
+  "android/samsung/galaxy-s25-ultra": {
+    "imageWidth": 1034,
+    "imageHeight": 2142,
+    "screen": {
+      "x": 23,
+      "y": 17,
+      "width": 986,
+      "height": 2107
+    }
+  },
+  "android/samsung/galaxy-s26": {
+    "imageWidth": 780,
+    "imageHeight": 1598,
+    "screen": {
+      "x": 13,
+      "y": 10,
+      "width": 757,
+      "height": 1584
+    }
+  },
+  "android/samsung/galaxy-s26-plus": {
+    "imageWidth": 1036,
+    "imageHeight": 2144,
+    "screen": {
+      "x": 19,
+      "y": 13,
+      "width": 998,
+      "height": 2118
+    }
+  },
+  "android/samsung/galaxy-s26-ultra": {
+    "imageWidth": 1034,
+    "imageHeight": 2144,
+    "screen": {
+      "x": 18,
+      "y": 14,
+      "width": 997,
+      "height": 2117
+    }
+  },
+  "android/samsung/galaxy-z-flip6": {
+    "imageWidth": 836,
+    "imageHeight": 1868,
+    "screen": {
+      "x": 28,
+      "y": 23,
+      "width": 780,
+      "height": 1823
+    }
+  },
+  "android/samsung/galaxy-z-flip8": {
+    "imageWidth": 800,
+    "imageHeight": 1744,
+    "screen": {
+      "x": 15,
+      "y": 18,
+      "width": 771,
+      "height": 1717
+    }
+  },
+  "android/samsung/galaxy-z-fold6": {
+    "imageWidth": 1928,
+    "imageHeight": 2232,
+    "screen": {
+      "x": 10,
+      "y": 10,
+      "width": 1908,
+      "height": 2211
+    }
+  },
+  "android/samsung/galaxy-z-fold8": {
+    "imageWidth": 1716,
+    "imageHeight": 1304,
+    "screen": {
+      "x": 16,
+      "y": 13,
+      "width": 1684,
+      "height": 1283
+    }
+  },
+  "android/samsung/galaxy-z-fold8-ultra": {
+    "imageWidth": 1370,
+    "imageHeight": 1502,
+    "screen": {
+      "x": 6,
+      "y": 2,
+      "width": 1358,
+      "height": 1499
+    }
+  },
+  "android/xiaomi/17": {
+    "imageWidth": 875,
+    "imageHeight": 1818,
+    "screen": {
+      "x": 17,
+      "y": 9,
+      "width": 841,
+      "height": 1798
+    }
+  },
+  "android/xiaomi/17-pro": {
+    "imageWidth": 876,
+    "imageHeight": 1818,
+    "screen": {
+      "x": 6,
+      "y": 13,
+      "width": 864,
+      "height": 1805
+    }
+  },
+  "android/xiaomi/17-pro-max": {
+    "imageWidth": 865,
+    "imageHeight": 1794,
+    "screen": {
+      "x": 6,
+      "y": 13,
+      "width": 853,
+      "height": 1781
+    }
+  },
+  "android/xiaomi/17-ultra": {
+    "imageWidth": 857,
+    "imageHeight": 1786,
+    "screen": {
+      "x": 21,
+      "y": 15,
+      "width": 816,
+      "height": 1769
+    }
+  },
+  "android/xiaomi/poco-x7": {
+    "imageWidth": 870,
+    "imageHeight": 1884,
+    "screen": {
+      "x": 17,
+      "y": 33,
+      "width": 837,
+      "height": 1830
+    }
+  },
+  "android/xiaomi/poco-x7-pro": {
+    "imageWidth": 902,
+    "imageHeight": 1896,
+    "screen": {
+      "x": 30,
+      "y": 27,
+      "width": 841,
+      "height": 1848
+    }
+  },
+  "android/xiaomi/poco-x8-pro": {
+    "imageWidth": 918,
+    "imageHeight": 1898,
+    "screen": {
+      "x": 22,
+      "y": 16,
+      "width": 874,
+      "height": 1867
+    }
+  },
+  "android/xiaomi/redmi-note-15-pro": {
+    "imageWidth": 934,
+    "imageHeight": 1924,
+    "screen": {
+      "x": 20,
+      "y": 20,
+      "width": 894,
+      "height": 1891
+    }
+  }
+}

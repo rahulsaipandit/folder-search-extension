@@ -1,0 +1,70 @@
+/* Flowing dash: active connector (completed → live node) */
+@keyframes dashMove {
+  from { background-position-x: 0px; }
+  to   { background-position-x: 12px; }
+}
+
+.connectorActive {
+  background-image: repeating-linear-gradient(
+    to right,
+    #10b981 0px,
+    #10b981 6px,
+    transparent 6px,
+    transparent 12px
+  );
+  animation: dashMove 1.1s linear infinite;
+}
+
+.connectorDone {
+  background-color: #10b981;
+}
+
+.connectorPending {
+  background-image: repeating-linear-gradient(
+    to right,
+    #4b5563 0px,
+    #4b5563 4px,
+    transparent 4px,
+    transparent 9px
+  );
+}
+
+/* Running node: pulsing blue ring */
+@keyframes pulseRing {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.9); }
+  50%       { box-shadow: 0 0 0 5px rgba(59, 130, 246, 0.2); }
+}
+
+.nodeRunning {
+  animation: pulseRing 1.4s ease-in-out infinite;
+}
+
+/* Waiting node: amber glow */
+@keyframes waitGlow {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.85); }
+  50%       { box-shadow: 0 0 8px 3px rgba(245, 158, 11, 0.25); }
+}
+
+.nodeWaiting {
+  animation: waitGlow 1.8s ease-in-out infinite;
+}
+
+/* Retrying node: purple bounce */
+@keyframes retryBounce {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.9); }
+  50%       { box-shadow: 0 0 0 5px rgba(139, 92, 246, 0.2); }
+}
+
+.nodeRetrying {
+  animation: retryBounce 0.85s ease-in-out infinite;
+}
+
+/* Failed node: red opacity flash */
+@keyframes errorFlash {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.55; }
+}
+
+.nodeFailed {
+  animation: errorFlash 1.0s ease-in-out infinite;
+}

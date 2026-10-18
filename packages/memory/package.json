@@ -1,0 +1,129 @@
+{
+    "name": "@page-agent/memory",
+    "version": "1.8.2",
+    "type": "module",
+    "main": "./src/index.ts",
+    "types": "./src/index.ts",
+    "exports": {
+        ".": {
+            "types": "./src/index.ts",
+            "default": "./src/index.ts"
+        },
+        "./interfaces": {
+            "types": "./src/interfaces/index.ts",
+            "default": "./src/interfaces/index.ts"
+        },
+        "./adapters/web": {
+            "types": "./src/adapters/web/index.ts",
+            "default": "./src/adapters/web/index.ts"
+        },
+        "./adapters/mobile": {
+            "types": "./src/adapters/mobile/index.ts",
+            "default": "./src/adapters/mobile/index.ts"
+        },
+        "./adapters/desktop": {
+            "types": "./src/adapters/desktop/index.ts",
+            "default": "./src/adapters/desktop/index.ts"
+        },
+        "./vault": {
+            "types": "./src/vault/index.ts",
+            "default": "./src/vault/index.ts"
+        },
+        "./agents": {
+            "types": "./src/agents/index.ts",
+            "default": "./src/agents/index.ts"
+        },
+        "./skills": {
+            "types": "./src/skills/index.ts",
+            "default": "./src/skills/index.ts"
+        },
+        "./persistence": {
+            "types": "./src/persistence/index.ts",
+            "default": "./src/persistence/index.ts"
+        },
+        "./procedural": {
+            "types": "./src/procedural/index.ts",
+            "default": "./src/procedural/index.ts"
+        },
+        "./core/cache": {
+            "types": "./src/core/cache/CacheConsistencyManager.ts",
+            "default": "./src/core/cache/CacheConsistencyManager.ts"
+        }
+    },
+    "publishConfig": {
+        "main": "./dist/lib/page-agent-memory.js",
+        "module": "./dist/lib/page-agent-memory.js",
+        "types": "./dist/lib/index.d.ts",
+        "exports": {
+            ".": {
+                "types": "./dist/lib/index.d.ts",
+                "import": "./dist/lib/page-agent-memory.js",
+                "default": "./dist/lib/page-agent-memory.js"
+            },
+            "./interfaces": {
+                "types": "./dist/lib/interfaces/index.d.ts",
+                "import": "./dist/lib/interfaces/index.js",
+                "default": "./dist/lib/interfaces/index.js"
+            },
+            "./adapters/web": {
+                "types": "./dist/lib/adapters/web/index.d.ts",
+                "import": "./dist/lib/adapters/web/index.js",
+                "default": "./dist/lib/adapters/web/index.js"
+            },
+            "./vault": {
+                "types": "./dist/lib/vault/index.d.ts",
+                "import": "./dist/lib/vault/index.js",
+                "default": "./dist/lib/vault/index.js"
+            },
+            "./agents": {
+                "types": "./dist/lib/agents/index.d.ts",
+                "import": "./dist/lib/agents/index.js",
+                "default": "./dist/lib/agents/index.js"
+            },
+            "./skills": {
+                "types": "./dist/lib/skills/index.d.ts",
+                "import": "./dist/lib/skills/index.js",
+                "default": "./dist/lib/skills/index.js"
+            },
+            "./persistence": {
+                "types": "./dist/lib/persistence/index.d.ts",
+                "import": "./dist/lib/persistence/index.js",
+                "default": "./dist/lib/persistence/index.js"
+            }
+        }
+    },
+    "files": [
+        "dist/"
+    ],
+    "description": "Hybrid Cognitive Memory Platform — local-first episodic memory, synthesis engine, and vault integration",
+    "keywords": [
+        "page-agent",
+        "memory",
+        "cognitive",
+        "episodic",
+        "synthesis",
+        "vault",
+        "mcp",
+        "rag",
+        "local-first"
+    ],
+    "author": "rahulsaipandit",
+    "license": "MIT",
+    "scripts": {
+        "build": "vite build",
+        "prepublishOnly": "node ../../scripts/pre-publish.js",
+        "postpublish": "node ../../scripts/post-publish.js"
+    },
+    "dependencies": {
+        "@modelcontextprotocol/sdk": "^1.16.0",
+        "@orama/orama": "^3.1.1",
+        "@page-agent/llms": "1.8.2",
+        "idb": "^8.0.3"
+    },
+    "peerDependencies": {
+        "zod": "^3.25.0 || ^4.0.0"
+    },
+    "devDependencies": {
+        "zod": "^4.4.3"
+    }
+}

@@ -1,0 +1,9 @@
+
+# Stale compiled JS artifacts in src/ — Vite resolves .js before .ts
+# causing the bundler to silently use old compiled output over current source.
+src/**/*.js
+!src/**/*.config.js
+!src/entrypoints/teleprompter/main.js
+!src/entrypoints/diff-tool/main.js
+!src/entrypoints/diff-tool/diffLogic.js
+!src/entrypoints/diff-tool/diffLogic.test.js

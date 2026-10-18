@@ -1,0 +1,14 @@
+{
+    "extName": {
+		"message": "sample-extension",
+        "audit": "RP_DONE"
+    },
+    "extDescription": {
+        "message": "AI-powered browser automation assistant. Automate work with natural language.",
+        "audit": "RP_DONE"
+    },
+    "extActionTitle": {
+		"message": "Open sample-extension",
+        "audit": "RP_DONE"
+    }
+}

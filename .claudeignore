@@ -1,0 +1,82 @@
+# Docs / examples
+docs/
+examples/
+public/
+scripts/
+
+# Environment / secrets
+.env
+.env.*
+.development.env
+secrets/
+
+# Certificates / keys
+*.pem
+*.cer
+*.key
+*.crt
+*.p12
+*.p8
+AppleRootCA-G3.cer
+
+# Tests
+test/
+tests/
+*tests.*
+*.test.*
+*.spec.*
+*.test.*
+*.spec.*
+test-*.*
+test-*.*
+*.test.*
+
+# Specific files
+README.md
+README-logger.md
+
+# Build / output
+dist/
+build/
+node_modules/
+android/
+android_*/
+android Copy/
+android_bak/
+legacy/
+
+# Expo
+.expo/
+
+# Editor / tooling
+.vscode/
+.idea/
+.cline/
+.clinerules/
+.vercel/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Coverage / temp
+coverage/
+.tmp/
+.cache/
+
+# Local DBs
+*.sqlite
+*.db
+
+# Scratch files
+1.md
+2.md
+README.md
+README-logger.md
+..prettierrc

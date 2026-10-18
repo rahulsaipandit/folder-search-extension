@@ -1,0 +1,21 @@
+{
+    "name": "@page-agent/graph-viewer",
+    "version": "1.8.2",
+    "private": true,
+    "type": "module",
+    "main": "./src/index.ts",
+    "types": "./src/index.ts",
+    "exports": {
+        ".": {
+            "types": "./src/index.ts",
+            "default": "./src/index.ts"
+        }
+    },
+    "description": "Interactive knowledge graph viewer — force-directed SVG, pan/zoom, hover details",
+    "peerDependencies": {
+        "react": ">=19"
+    },
+    "devDependencies": {
+        "@types/react": "^19.2.14"
+    }
+}

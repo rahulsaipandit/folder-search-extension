@@ -1,0 +1,35 @@
+<svg width="40px" viewBox="0 0 40 40" role="img" xmlns="http://www.w3.org/2000/svg" style="">
+    <title
+        style="fill:rgb(0, 0, 0);stroke:none;color:rgb(0, 0, 0);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto">
+        Rainbow spinner animation</title>
+    <desc
+        style="fill:rgb(0, 0, 0);stroke:none;color:rgb(0, 0, 0);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto">
+        An animated circle with a rainbow gradient that rotates continuously</desc>
+    <defs>
+        <linearGradient id="rainbow" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#ff0000" />
+            <stop offset="14%" stop-color="#ff4400" />
+            <stop offset="28%" stop-color="#ff8800" />
+            <stop offset="42%" stop-color="#ffff00" />
+            <stop offset="56%" stop-color="#00ff44" />
+            <stop offset="70%" stop-color="#0088ff" />
+            <stop offset="85%" stop-color="#8800ff" />
+            <stop offset="100%" stop-color="#ff0000" />
+        </linearGradient>
+    </defs>
+    <!-- Circle size: Determined by radius r="15", with viewBox="0 0 40 40" and centered at (20,20) -->
+    <g transform="translate(20,20)"
+        style="fill:rgb(0, 0, 0);stroke:none;color:rgb(0, 0, 0);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto">
+        <!-- Stroke width: Determined by stroke-width="7" -->
+        <!-- Arc length: Stroke-dasharray="300" creates a dash segment -->
+        <!-- Stroke-dashoffset="75" offsets the dash start, creating the visible arc segment -->
+        <circle cx="0" cy="0" r="15" stroke="url(#rainbow)" stroke-width="3" fill="none" stroke-linecap="round"
+            stroke-dasharray="300" stroke-dashoffset="75"
+            style="fill:none;color:rgb(0, 0, 0);stroke-width:3px;stroke-dasharray:300px;stroke-linecap:round;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto">
+            <!-- Speed: Determined by dur="1.2s" - the animation completes one full rotation in 1.2 seconds -->
+            <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="1.2s"
+                repeatCount="indefinite"
+                style="fill:none;color:rgb(0, 0, 0);stroke-width:3px;stroke-dasharray:300px;stroke-linecap:round;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto" />
+        </circle>
+    </g>
+</svg>
