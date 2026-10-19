@@ -137,7 +137,7 @@ export interface VideoSegment {
  */
 export async function* videoSegments(
 	file: Blob
-): AsyncGenerator<VideoSegment, { durationSec: number; truncated: boolean }> {
+): AsyncGenerator<VideoSegment, { durationSec: number; truncated: boolean; width: number; height: number }> {
 	const url = URL.createObjectURL(file)
 	const video = document.createElement('video')
 	video.muted = true
@@ -168,7 +168,7 @@ export async function* videoSegments(
 			}
 			yield { start: seg.start, end: seg.end, frames, thumbnail: thumbnail! }
 		}
-		return { durationSec: duration, truncated: plan.truncated }
+		return { durationSec: duration, truncated: plan.truncated, width: video.videoWidth, height: video.videoHeight }
 	} finally {
 		video.removeAttribute('src')
 		video.load()

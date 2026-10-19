@@ -445,7 +445,8 @@ FolderSearch.tsx          stepper + state machine: welcome → consent → downl
 ├─ ModelConsent.tsx / ModelProgress.tsx
 ├─ FolderPicker.tsx / PreScanSummary.tsx
 ├─ IndexBanner.tsx / IndexDetails.tsx
-├─ SearchBar.tsx (+ FilterChips, ExampleQueries)
+├─ SearchBar.tsx (+ FilterChips, ExampleQueries)   (+ menu, mic, camera, paste/drop: §4B.2)
+├─ Browse.tsx → FileTable / glass media wall (CSS fallback): §4B.1, §4B.3
 ├─ SearchResults.tsx
 │   ├─ MediaSection.tsx → MediaGrid.tsx (virtualized) → Lightbox.tsx
 │   └─ DocumentSection.tsx → DocumentCard.tsx → PdfViewer.tsx
@@ -463,6 +464,312 @@ ConfigPanel, so settings are reached only through the gear in the Folder Search 
 page). Model download, folder picking and removal always happen on pages that own the handle,
 never inside a small panel. An optional "Ask" mode resolves its LLM via `getTextLLMConfig(settings)`;
 its provider is chosen on the existing AI-provider settings page.
+
+## 4B. Browse view, search bar and the glass media wall
+
+Added 2026-10-18. This section records the browse view (what the panel shows before you type), the
+search bar, and the WebGL "glass" wall of images, videos and audio with its CSS fallback.
+
+### 4B.1 Browse view (empty search box)
+
+With no query, no "find similar" and no media query, the panel lists indexed files instead of an
+empty box (`Browse.tsx`, pure logic in `browse.ts`). The chips choose what is listed:
+
+| Chip | Shows |
+| --- | --- |
+| All | the media wall (images, videos, audio), then a details table of documents |
+| Images | the media wall, images only |
+| Documents | details table |
+| Audio & video | the media wall, audio and video only |
+
+- **Details table** (like Explorer's Details view): Name (with folder underneath), Modified, Type, Size.
+  Click a header to sort; click again to reverse. Names sort naturally (`img2` before `img10`).
+  Click a row to open the file. It lists indexed files only (never skipped or unsupported ones).
+- **Media wall**: newest first, justified rows (§4B.3). Byte-identical duplicate images are left out
+  because they carry no vectors or thumbnails; they still appear in search results.
+- Typing, Enter, a media query or "find similar" replaces the browse view with ranked results.
+
+### 4B.2 Search bar
+
+One pill-shaped bar modelled on the EmbeddingGemma 2 WebGPU demo:
+
+| Control | Behaviour |
+| --- | --- |
+| `+` | Menu: **Add a folder**, or **Search with an image or sound…** (file picker) |
+| Text box | Search as you type (300 ms pause); **Enter** searches immediately |
+| Mic | Record up to 30 s; click again to stop and search by what was said or played |
+| Camera | Webcam dialog; the photo becomes the query |
+| Paste / drop | An image or audio file pasted into, or dropped on, the bar becomes the query |
+
+- Image and audio queries are embedded by the vision/audio encoder in the offscreen document
+  (`offscreen:folder:search-media`) and scored against every stored modality in the shared space
+  (`SearchIndex.searchByVector`). Images are downscaled to 768 px JPEG in the panel first, and both
+  kinds travel as base64 because runtime messages are JSON. The camera and mic are disabled unless
+  the matching encoder was enabled and indexed.
+- **Camera/microphone permission.** Side panels usually cannot show Chrome's prompt, so a blocked
+  request opens `media-permission.html?kind=audio|video`, a normal tab that asks. The grant is stored
+  for the extension origin, so the panel's own request then succeeds. Nothing is recorded there.
+- **Relevance filter.** Each modality's results are cut at a clear gap in the real scores
+  (`clearGapCutoff`, `ranking.ts`) before the z-score gate, because the gate's priors are unmeasured
+  and on small indexes let every item through. Scores and cut-offs are logged to the offscreen console
+  for tuning.
+- Not supported (unlike the demo): video or text files as the query, and recordings over 30 s (the
+  audio encoder embeds one 30 s window per query).
+
+### 4B.3 The glass media wall
+
+**What the user sees.** Images, videos and audio drawn as thick rounded glass tiles of the same height
+in each row. Videos play inside their tile; audio shows an animated waveform card. The edges bend the picture
+(refraction with slight colour fringing) and a soft reflection and rim light sit on the surface. As
+the pointer moves over the wall the whole scene turns a few degrees toward it (the demo's "orbit"), so
+the glass keeps catching light; a hovered tile brightens and shows its name. It is modelled on the
+demo's behaviour and look; the shaders are our own (see "Provenance").
+
+**Applies to any folder.** Nothing is specific to a data set. Whatever the indexer stores is what the wall
+draws: for an image its 256 px JPEG `thumbnail` plus original `width`/`height` (`imageVectors`), for a
+video the poster frame of its first segment (`mediaUnits`) plus `FileRecord.width/height/duration`, for
+audio `FileRecord.duration` and `waveform` (§4B.6).
+A newly chosen folder, a rescan, or files added later appear with the same effect, because the wall
+is built from the index at render time and holds no precomputed assets. It reads IndexedDB from the
+panel; the offscreen document, the network and the model are not involved.
+
+**How it is achieved.** One WebGL2 canvas draws every visible tile in a single instanced call.
+
+1. **Layout (`glass/layout.ts`, pure, unit-tested).** Justified rows, as in the demo: every row has one
+   height, a tile's width is that height times its aspect ratio, and rows are balanced (items are split
+   into rows of similar total width) so each fills the full width. So photos and videos in a row are the
+   same height. The row count is chosen so rows land near a target height (140 px in the side panel,
+   200 px on the full-tab page). A row that would grow beyond 1.5× the target (a few items in a wide
+   window) is capped and left-aligned instead. Tile aspect equals the item's aspect, so pictures are
+   shown undistorted; audio tiles are 4:3 (there is no picture to take a shape from).
+2. **Scrolling.** The tall wrapper gets the full layout height (so native scrolling, scrollbars and
+   find-in-page behave). The canvas is `position: sticky; top: 0` inside it, sized to the viewport, and
+   draws the slice of the layout that is on screen (scroll offset = how far the wrapper's top is above
+   the viewport).
+3. **Interaction layer.** An invisible `<button>` per tile sits at the tile's rectangle, above the
+   canvas. The browser does the hit-testing, keyboard focus, `aria-label` (file name) and click; the
+   canvas only paints. Hovering a button brightens that tile and shows its name; the pointer position over the wall drives
+   the orbit.
+4. **Textures.** Pictures live in one `TEXTURE_2D_ARRAY` of fixed 320×320 layers used as a pool. A tile
+   gets a layer when it is within about one screen of the viewport and gives it back when it leaves
+   (least recently visible first). Each picture is decoded with `createImageBitmap` straight to
+   320×320 (a stretch that the matching tile aspect undoes) and uploaded with `texSubImage3D`.
+   GPU memory is bounded by the pool (128 layers ≈ 52 MB), not by the number of items. Which tile owns
+   which layer, the least-recently-drawn eviction, and the tokens that discard a load finishing after its
+   layer was re-assigned are the pure `glass/layerPool.ts`; the renderer only uploads. The layer is
+   larger than the stored 256 px thumbnails so that playing video stays sharp.
+5. **Vertex shader.** Places each tile's quad in pixel space with a slight spherical bulge, rotates the
+   whole scene about the viewport centre by the orbit (at most 0.05 rad,
+   about 3°, pitch and yaw), and projects it with perspective (focal length 1200 px).
+6. **Fragment shader.**
+   - a signed-distance rounded rectangle gives the silhouette and anti-aliased edge;
+   - a bevel profile (a steep rounded falloff near the edge) is differentiated numerically into a
+     surface normal, so the rim bends light and the middle stays flat;
+   - the view ray is refracted three times with slightly different indices of refraction (red, green,
+     blue) and the thumbnail is sampled at three offsets, which produces the colour fringing;
+   - a Schlick-Fresnel mix adds reflection of a procedural "studio" environment (a vertical gradient
+     plus two soft boxes, computed analytically in the shader: no HDR file is loaded);
+   - a thin rim light and a small hover brightening finish the look. The refraction and reflection use
+     the orbit-rotated view direction, which is why the highlights slide as the pointer moves.
+7. **Animation.** Each tile eases a `hover` value (a slight brighten, no movement of its own), and the
+   orbit eases toward the pointer (about 90 ms). Moving off the wall eases it back to rest. The motion
+   people see is therefore page-level: the whole scene turns about the viewport centre, so tiles near the
+   edges move more than tiles near the middle. The render loop runs only while something is changing
+   (hover easing, scrolling, a texture arriving, a playing video or audio tile) and then stops, so an
+   idle panel with nothing playing uses no GPU.
+8. **Live tiles (`glass/WallMedia.ts`).** See "Video, audio and the viewer" below.
+
+**Performance budget.**
+
+| Concern | Decision |
+| --- | --- |
+| Fill rate | one pass, ~5 texture reads per pixel; resolution capped at devicePixelRatio 2 |
+| Playing video | at most 8 videos play at once (4 on touch devices, as in the demo); each decoded frame is drawn once into a 320×320 scratch canvas and uploaded to the tile's layer |
+| Draw calls | 1 per frame for all visible tiles |
+| GPU memory | texture pool (128 layers ≈ 52 MB); a few small buffers |
+| Idle cost | none: no animation frame requested when nothing changes |
+| DOM | one transparent button per tile (no images); wall capped at 1,000 tiles with "Show more" |
+| Contention | indexing also uses the GPU (in the offscreen document); the context asks for `powerPreference: 'low-power'` so a laptop keeps the wall on the integrated GPU; a busy GPU can still make it drop frames |
+
+These are design limits, not measurements (§4B.7).
+
+**Fallback: the CSS wall.** The previous implementation (CSS columns, pointer tilt and a highlight via
+inline transforms; video shows its poster and audio a plain card, both with the same kind and duration
+labels) is kept and is used when any of these is true: WebGL2 is unavailable or the shader
+fails to compile, the context is lost and does not restore, or the user has asked for reduced motion
+(`prefers-reduced-motion`). The switch is automatic; both walls share the same lightbox, thumbnails and
+hover label, so behaviour is identical apart from the look and from playback: the CSS wall does not
+play videos in the grid (clicking still opens the viewer).
+
+**Accessibility.** Tiles are real buttons in reading order with the file name as the label and a visible
+focus ring (a brighter rim on the glass tile, plus a DOM outline on the button). Video and audio tiles
+label themselves with their kind and length (`aria-label` "name, video, 0:12"). Reduced motion selects
+the CSS wall with its transitions off, so nothing autoplays for those users. Opening an image uses the
+lightbox; opening a video or audio file uses the media viewer. Both are modal: Tab stays inside them
+(`focusTrap.ts`: Tab on the last control wraps to the first, Shift+Tab on the first to the last, stray
+focus comes back in), and both return focus to the tile on close.
+
+**Video, audio and the viewer** (how the demo does it, read from its bundle):
+
+- **Labels.** Video and audio tiles carry two HTML elements in the button layer: a pill at the top left
+  with a play or pause glyph and the kind ("Video" / "Audio"), and the duration at the top right. The
+  glyph is a pause when that video is playing and a play triangle otherwise. They are HTML, not drawn in
+  WebGL, so they stay crisp; they do not turn with the orbit (a few pixels of drift at the edges).
+- **Video plays on the wall.** Videos near the viewport (nearest first, up to 8) autoplay muted and
+  looping. A hidden `<video>` is created per tile from the original file (read from the folder handle,
+  object URL); `requestVideoFrameCallback` copies each new frame into the tile's texture layer. Videos
+  that leave the viewport are released (paused, `src` removed, URL revoked). Everything pauses while the
+  tab is hidden or a viewer is open.
+- **Audio cards.** A dark gradient with a centre line and one bar per stored peak (96 peaks resampled to
+  the card width), a gradient fill, and a gentle pulse rolling along the bars, redrawn every 50 ms for the
+  audio tiles near the viewport. Until peaks are known a placeholder pattern is drawn.
+- **Viewer (`MediaViewer.tsx`).** Clicking a video or audio tile opens a viewer that plays with sound:
+  play/pause, a seek bar, the time (`0:03 / 0:12`) and mute, plus Open original and Close (Escape).
+  Audio shows the same waveform with the play position and a cursor. Space toggles playback.
+- **Access to the original.** Playing needs the folder handle's permission. After a browser restart it may
+  have lapsed: the tile then keeps its poster, one warning is logged for that file, and the existing
+  "Reconnect" card restores access. Nothing is retried on every scroll.
+- **Not covered:** a file the browser cannot decode (the tile keeps its poster and is not retried), and
+  files without a length in their header (some recorded WebM): the duration label stays blank.
+
+**Privacy and security.** No network access, no remote textures or HDR, no new permissions. Thumbnails
+never leave the page: they go from IndexedDB blobs to GPU textures.
+
+**Provenance.** The look follows the EmbeddingGemma 2 WebGPU demo (a WebGL2 scene with rounded-rect
+signed-distance cards, a bevel-derived normal, per-channel refraction, Fresnel reflection of an
+environment map and a rim light). The demo's source is a minified bundle with no stated license, so
+nothing was copied: the techniques are standard, and the shaders here are written from scratch. We use
+a procedural environment instead of its 1.7 MB `studio.hdr`.
+
+**How it compares with the demo's source** (read from its published bundle):
+
+| | Demo | Here |
+| --- | --- | --- |
+| Motion on hover | `setOrbit`: the whole scene turns up to ±0.05 rad toward the pointer, eased; disabled for reduced motion | Same (global orbit, eased; reduced motion uses the CSS wall) |
+| Per-card hover | `card.hover = 1`: slight brightening plus label and relevance score | Slight brightening plus name label; relevance shown in search results |
+| Structure | WebGL2 instanced draw, DOM button layer for labels and focus, CSS fallback on context loss | Same pattern |
+| Environment | `studio.hdr` (RGBE) sampled in the shader | Procedural studio computed in the shader |
+| Thumbnails | One large texture array, images sized for it, preloaded for the nearest cards | Fixed pool of layers re-used as tiles enter and leave the viewport |
+| Layout | Justified rows (rows balanced to one width, alternate rows offset by half a tile), on a pannable, zoomable canvas that wraps sideways | Justified rows in a normal scrolling page (sticky canvas); no offset, no wrap |
+| Video | A hidden `<video>` per card near the view, frames copied into the texture with `requestVideoFrameCallback`, at most 8 (4 on touch) | Same |
+| Audio | Waveform card, pulse redrawn every 50 ms for nearby cards | Same look and timing; peaks stored in the index (96 bars) |
+| Playback with sound | Focused card opens a viewer with play, seek, time and mute | `MediaViewer` with the same controls |
+
+**Alternatives considered.** Port the demo verbatim (licence unknown, minified, ties us to its data
+model); CSS 3D only (cannot refract, so no glass look; kept as the fallback); three.js (a large
+dependency for one instanced quad).
+
+### 4B.4 Files
+
+```
+folder-search/browse.ts                          pure: which files, sorting, name/ext helpers (+ test)
+entrypoints/sidepanel/components/FolderSearch/
+├─ Browse.tsx                  BrowseView, FileTable, MediaWall (lightbox/viewer state, glass or CSS wall)
+├─ MediaViewer.tsx             video/audio player with play, seek, time, mute
+├─ SearchBar.tsx               bar, + menu, mic, camera dialog, paste/drop
+├─ mediaQuery.ts               image downscale, base64, permission helpers
+└─ glass/
+   ├─ layout.ts                pure justified-rows layout (+ test)
+   ├─ shaders.ts               GLSL ES 3.00 sources
+   ├─ GlassRenderer.ts         WebGL2: program, instanced quad, texture pool, animation loop, uploadToTile
+   ├─ WallMedia.ts             plays nearby videos into tiles, animates audio tiles, backfills metadata
+   ├─ layerPool.ts             pure: texture-layer ownership, eviction and stale-load tokens (+ test)
+   ├─ drawWaveform.ts          the audio card drawing (wall tile and viewer)
+   └─ GlassWall.tsx            sticky canvas + button layer + labels; reports "unsupported" to use the CSS wall
+folder-search/waveform.ts                        pure: peaks from samples, duration text (+ test; also used by the indexer)
+folder-search/mediaMeta.ts                       panel-side waveform/duration read for files indexed earlier (+ test)
+entrypoints/sidepanel/components/FolderSearch/focusTrap.ts   Tab trap for the lightbox and the viewer (+ test)
+entrypoints/media-permission/  tab that requests camera/mic access
+```
+
+### 4B.5 Edge cases
+
+- Zero or one item: the layout handles it; a lone tile is capped at 1.5× the target row height and left-aligned.
+- Panel resized or zoom changed: the wrapper's `ResizeObserver` recomputes the rows, layout and canvas size.
+  The renderer is told the new rectangles for the *same* tiles (`setLayout`), so loaded pictures, hover and
+  playing videos survive dragging the panel edge. Only a different set of files (`setTiles`) resets the
+  texture pool and restarts the previews.
+- Very tall layouts: only the viewport slice is drawn; canvas height never exceeds the viewport, so it
+  stays under GPU texture-size limits.
+- Thumbnail missing (e.g. vision encoder was off): the tile is drawn as a neutral glass tile (grey
+  through the glass) and stays clickable; it is not retried.
+- The orbit moves outer tiles by up to about 30 px, which the canvas edge would clip,
+  so the canvas is `GLASS_PAD` (32 px) wider than the layout on each side and shifted left by the same
+  amount.
+- **The file list refreshes many times during a rescan** (each progress event hands the UI a new array
+  with the same files). The wall is keyed on the list's *content* (id, mtime, size), not the array's
+  identity, and it keeps its last good layout while image sizes reload. Keyed on identity, it unmounted
+  and rebuilt the GL context on every refresh, so textures never finished loading (grey tiles) and the
+  wall flickered. A regression check refreshes a 3-image list every 30 ms and expects one GL context.
+- The panel scrolls inside a `div` (`App.tsx`: `h-screen overflow-y-auto`), not the window, so the wall
+  finds its nearest scrolling ancestor for the sticky canvas, the scroll offset and the viewport height.
+  The offset is read from the canvas's own position inside the wrapper, so it stays correct
+  wherever the sticky canvas currently sits.
+- Context lost: the loop stops; on restore the pool is cleared and thumbnails are re-uploaded; if the
+  context is not restored the CSS wall takes over.
+- Rapid scroll: a layer is requested only for tiles near the viewport; stale decodes are discarded when
+  the tile has left, so fast scrolling cannot fill the pool with off-screen images. Videos and audio
+  animation follow the same "near the viewport" set, so a fast scroll starts and stops them quickly.
+- A video that scrolls away keeps its last frame in the tile (the layer is not cleared) until the layer is
+  re-used.
+- Folder access lapsed, file moved, or an undecodable file: the tile keeps its poster; one console warning
+  per file; no retry loop.
+
+### 4B.6 Index fields for media cards
+
+Additive, optional fields on `FileRecord` (no schema bump: records without them still load):
+
+| Field | Set for | By |
+| --- | --- | --- |
+| `duration` (seconds) | audio, video | indexer (`decodeAudioWindows` / `videoSegments`) |
+| `width`, `height` | video | indexer (`videoSegments` return value) |
+| `waveform` (96 peaks, 0..1) | audio | indexer (`waveformPeaks` over the decoded windows) |
+
+Files indexed before these existed have none of them. The wall fills them in the first time the file is
+shown: a playing video reports its length and size from `loadedmetadata`, and an audio file is decoded
+once at 12 kHz in the panel (one at a time) for its peaks and length. The values are shown at once and
+saved with `patchFileMeta` (which drops undefined fields, so a partial result never blanks a stored value),
+which only writes if the stored record is still the same file version
+(`mtime`), so it cannot overwrite what the indexer just wrote. Videos indexed earlier take their tile
+shape from the poster frame until their size is learned.
+
+### 4B.7 Status and what is unverified
+
+- Unit-tested: the layout (`layout.test.ts`), the texture-layer pool (`layerPool.test.ts`: free layers first,
+  eviction order, never evicting a near tile, stale loads, retry rules), the media manager
+  (`WallMedia.test.ts`, run under happy-dom with a fake renderer and fake files: the video limit and
+  releasing, one metadata report per file, a released video's error not blocking the file, no retry loop for
+  an unreadable file, pausing, audio animation and waveform backfill), waveform peaks and durations
+  (`waveform.test.ts`), the file-selection/sorting and content key (`browse.test.ts`), the metadata
+  patch filter (`mediaMeta.test.ts`) and the Tab trap (`focusTrap.test.ts`). Two of the `WallMedia` tests
+  were confirmed to fail when their fix is removed.
+- Not unit-testable here: the GL calls and the React components (no WebGL in node or happy-dom); these are
+  covered by the manual headless-Chromium checks below.
+- The shaders and renderer were checked by rendering a synthetic scene (24 and 300 gradient tiles) in
+  headless Chromium with software GL (SwiftShader): the shaders compile and link, the glass look renders
+  (bevel refraction, edge fringing, reflection, rim), a hovered tile lifts and tilts and is not clipped,
+  scrolling through 300 tiles re-uses the texture pool correctly, and with WebGL disabled `create()`
+  returns null with a logged reason so the CSS wall is used.
+- The real React components (`BrowseView` → `GlassWall` → `GlassRenderer`) were also run in headless
+  Chromium against a stand-in for the IndexedDB layer: textures load, the scene moves with the pointer
+  (about 15,000 px differ between idle and a corner) and returns to rest when the pointer leaves, and a
+  list refreshed every 30 ms keeps one GL context.
+- Video and audio were run the same way with generated media (a real WebM recorded in the page, a WAV)
+  read through the same code path as a real file: videos play into their tiles and the label shows a pause
+  glyph; audio tiles animate; for files with no stored metadata the duration (`0:02`, `0:04`) and a 96-bar
+  waveform are learned and saved; clicking a video or audio tile opens the viewer, which plays with sound
+  and a moving time, pauses on the button, closes on Escape, and the wall's previews resume; the wall
+  pauses its own previews while the viewer is open; the full-tab layout puts one row of equal-height
+  tiles across the width; five rapid resizes create no new video element or GL context and both videos keep
+  playing; Tab never leaves the open viewer; the Images, Audio & video and Documents chips show the right items; and with
+  WebGL disabled the CSS wall renders video and audio cards.
+- Not verified: a real GPU, the packed side panel itself (its real scroll container and CSS), thumbnails
+  from a real index, H.264/AAC files (the test browser only had WebM), eight videos playing at once, the
+  lapsed-permission path with a real folder handle, and behaviour while the model is indexing.
+  The WebGL code has no automated test (no GL in unit tests); the headless render was a manual check.
+- Frame time, GPU memory and the effect of concurrent indexing are **unmeasured**. Measure on a mid-range
+  laptop with ~500 images before relying on the numbers above, and tune the pool size, the tile cap and
+  the DPR cap from that.
 
 ## 5. Indexing pipeline
 
@@ -588,6 +895,7 @@ needed.
 | Image indexing (WebGPU) | ≥ 5–10 img/s; CPU fallback acceptable but slow, with ETA shown |
 | Doc indexing | ≥ 20 chunks/s on WebGPU |
 | Memory | Bounded batches; no full-library arrays in memory besides vectors |
+| Glass media wall | 60 fps while hovering/scrolling ~500 items with up to 8 videos playing on a mid-range laptop GPU; no GPU use when idle and nothing playing; texture memory ≤ ~52 MB (§4B.3) |
 
 Numbers are goals, not measurements — benchmark on a mid-range laptop before promising ETAs in UI.
 
@@ -758,3 +1066,6 @@ Nothing in this repo has executed the EmbeddingGemma calls in a real browser. In
 - the fp16 CPU path end to end (file names `*_fp16.onnx`, memory use, the one-image-per-call rule).
 
 The nesting rules for audio and video were checked against the library source, not by running them.
+- the glass media wall (including video playing into tiles) on a real GPU, in the side panel, and alongside indexing (§4B.7); the
+  query-by-image and query-by-audio paths (§4B.2); and the camera/microphone permission flow
+  (`media-permission.html`).

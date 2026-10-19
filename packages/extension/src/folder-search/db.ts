@@ -6,6 +6,7 @@
 import { type DBSchema, type IDBPDatabase, openDB } from 'idb'
 
 import { termFrequencies } from './keywords'
+import { type MediaMeta, definedOnly } from './mediaMeta'
 import type {
 	ChunkRecord,
 	FileRecord,
@@ -88,6 +89,21 @@ export async function getFiles(folderId: string): Promise<FileRecord[]> {
 export async function getFile(fileId: string): Promise<FileRecord | undefined> {
 	return (await getDB()).get('files', fileId)
 }
+/**
+ * Adds display metadata (duration, size, waveform) to a file indexed before those fields existed. Read
+ * and written in one transaction, and only while the stored record is still the same file version, so it
+ * cannot clobber a record the indexer just rewrote.
+ */
+export async function patchFileMeta(
+	fileId: string,
+	mtime: number,
+	meta: MediaMeta
+): Promise<void> {
+	const tx = (await getDB()).transaction('files', 'readwrite')
+	const cur = await tx.store.get(fileId)
+	if (cur && cur.mtime === mtime) await tx.store.put({ ...cur, ...definedOnly(meta) })
+	await tx.done
+}
 export async function putFiles(files: FileRecord[]): Promise<void> {
 	const db = await getDB()
 	const tx = db.transaction('files', 'readwrite')
@@ -117,6 +133,18 @@ export async function putImageVector(rec: ImageVectorRecord): Promise<void> {
 }
 export async function getImageVector(fileId: string): Promise<ImageVectorRecord | undefined> {
 	return (await getDB()).get('imageVectors', fileId)
+}
+/** Original pixel size of each image, for laying out the wall before any thumbnail is decoded. */
+export async function getImageDims(fileIds: string[]): Promise<Map<string, { width: number; height: number }>> {
+	const tx = (await getDB()).transaction('imageVectors')
+	const out = new Map<string, { width: number; height: number }>()
+	await Promise.all(
+		fileIds.map(async id => {
+			const r = await tx.store.get(id)
+			if (r) out.set(id, { width: r.width, height: r.height })
+		})
+	)
+	return out
 }
 export async function getImageVectors(folderId: string): Promise<ImageVectorRecord[]> {
 	return (await getDB()).getAllFromIndex('imageVectors', 'byFolder', folderId)

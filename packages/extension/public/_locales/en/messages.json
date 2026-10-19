@@ -1,6 +1,6 @@
 {
     "extName": {
-		"message": "sample-extension",
+		"message": "image-text-search",
         "audit": "RP_DONE"
     },
     "extDescription": {
@@ -8,7 +8,7 @@
         "audit": "RP_DONE"
     },
     "extActionTitle": {
-		"message": "Open sample-extension",
+		"message": "Open Image-Text Search",
         "audit": "RP_DONE"
     }
 }

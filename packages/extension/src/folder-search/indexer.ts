@@ -42,6 +42,7 @@ import { fingerprint } from './extractors/pure'
 import { termFrequencies } from './keywords'
 import { RemovalContext } from './removal'
 import { SOUNDTRACK_MAX_BYTES, VIDEO_MAX_SEGMENTS } from './videoPlan'
+import { waveformPeaks } from './waveform'
 import { ensureLoaded } from './modelManager'
 import type { SearchIndex } from './searchIndex'
 import {
@@ -650,7 +651,7 @@ export class Indexer {
 	}
 
 	private async indexAudio(rec: FileRecord, file: File, dim: number): Promise<FileRecord> {
-		const { windows, startSecs, truncated } = await decodeAudioWindows(file)
+		const { windows, startSecs, truncated, durationSec } = await decodeAudioWindows(file)
 		if (!windows.length) return { ...rec, indexState: 'skipped', skipReason: 'empty' }
 		const vectors = await gemma.embedAudio(windows, dim)
 		const units: MediaUnitRecord[] = vectors.map((embedding, i) => ({
@@ -669,6 +670,8 @@ export class Indexer {
 			...rec,
 			indexState: 'indexed',
 			units: units.length,
+			duration: durationSec,
+			waveform: waveformPeaks(windows),
 			note: truncated ? 'Only the first 30 minutes were indexed' : undefined,
 		}
 	}
@@ -682,11 +685,13 @@ export class Indexer {
 		const notes: string[] = []
 		const gen = videoSegments(file)
 		let truncated: boolean
+		let probe: { durationSec: number; width: number; height: number }
 		for (;;) {
 			await this.gate()
 			const next = await gen.next()
 			if (next.done) {
 				truncated = next.value.truncated
+				probe = next.value
 				break
 			}
 			const seg = next.value
@@ -736,7 +741,15 @@ export class Indexer {
 			}
 		}
 		if (!units.length) return { ...rec, indexState: 'skipped', skipReason: 'empty' }
-		return { ...rec, indexState: 'indexed', units: units.length, note: notes.join('. ') || undefined }
+		return {
+			...rec,
+			indexState: 'indexed',
+			units: units.length,
+			duration: probe.durationSec,
+			width: probe.width,
+			height: probe.height,
+			note: notes.join('. ') || undefined,
+		}
 	}
 }
 

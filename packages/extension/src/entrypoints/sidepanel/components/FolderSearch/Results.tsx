@@ -10,6 +10,7 @@ import type { DocumentHit, FolderRecord, MediaHit, SearchResponse } from '@/fold
 import { useScopedLLM } from '@/llm/useScopedLLM'
 import { type UnifiedSettings, loadSettings } from '@/shared/settings'
 
+import { useFocusTrap } from './focusTrap'
 import { useInView, useThumbUrl } from './thumbs'
 
 type FolderMap = Map<string, FolderRecord>
@@ -148,6 +149,8 @@ export function Lightbox({
 	const [err, setErr] = useState<string | null>(null)
 	const [zoom, setZoom] = useState(false)
 	const closeBtn = useRef<HTMLButtonElement>(null)
+	const dialogRef = useRef<HTMLDivElement>(null)
+	useFocusTrap(dialogRef)
 	const thumb = useThumbUrl({ kind: 'image', fileId: hit.fileId }, true)
 
 	useEffect(() => {
@@ -184,7 +187,7 @@ export function Lightbox({
 	}, [onClose, step])
 
 	return (
-		<div role="dialog" aria-modal="true" aria-label={hit.relPath} className="fixed inset-0 z-50 flex flex-col bg-black/90 text-white">
+		<div ref={dialogRef} role="dialog" aria-modal="true" aria-label={hit.relPath} className="fixed inset-0 z-50 flex flex-col bg-black/90 text-white">
 			<div className="flex items-center gap-2 p-2 text-xs">
 				<span className="flex-1 truncate" title={hit.relPath}>{hit.relPath}</span>
 				<Button size="sm" variant="ghost" className="h-7 text-xs text-white hover:bg-white/10" onClick={() => onSimilar(hit)}>

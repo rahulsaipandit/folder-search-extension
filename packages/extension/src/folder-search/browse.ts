@@ -6,6 +6,15 @@ export interface BrowseSort {
 	dir: 'asc' | 'desc'
 }
 
+/**
+ * Identity of a list of files by content (which files, which version), ignoring the array object. The
+ * index hands the UI a new array on every progress event; anything keyed on this key stays put until a
+ * file is added, removed or changed. Details learned later (duration, waveform) deliberately do not count.
+ */
+export function filesKey(files: FileRecord[]): string {
+	return files.map(f => `${f.fileId}:${f.mtime}:${f.size}`).join('|')
+}
+
 export function fileName(relPath: string): string {
 	return relPath.slice(relPath.lastIndexOf('/') + 1)
 }

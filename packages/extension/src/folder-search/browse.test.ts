@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { browsableFiles, fileExt, sortFiles } from './browse'
+import { browsableFiles, fileExt, filesKey, sortFiles } from './browse'
 import type { FileRecord } from './types'
 
 function rec(relPath: string, over: Partial<FileRecord> = {}): FileRecord {
@@ -55,5 +55,18 @@ describe('fileExt', () => {
 		expect(fileExt('x/.gitignore')).toBe('')
 		expect(fileExt('x/README')).toBe('')
 		expect(fileExt('x/Notes.final.md')).toBe('MD')
+	})
+})
+
+describe('filesKey', () => {
+	it('is the same for a new array with the same files, and changes when a file changes', () => {
+		const a = [rec('a.txt'), rec('b.txt')]
+		expect(filesKey([...a.map(f => ({ ...f }))])).toBe(filesKey(a))
+		expect(filesKey([a[0]!, { ...a[1]!, mtime: 2 }])).not.toBe(filesKey(a))
+		expect(filesKey([a[0]!])).not.toBe(filesKey(a))
+	})
+	it('ignores details learned later, so filling them in does not reset the wall', () => {
+		const a = [rec('a.mp3', { kind: 'audio' })]
+		expect(filesKey([{ ...a[0]!, duration: 12, waveform: [1] }])).toBe(filesKey(a))
 	})
 })

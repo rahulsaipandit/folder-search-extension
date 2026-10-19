@@ -75,6 +75,13 @@ export interface FileRecord {
 	/** PDFs: total pages and how many are indexed so far (first pages first, rest in background). */
 	pagesTotal?: number
 	pagesDone?: number
+	/** Audio and video length in seconds. Files indexed before this field existed get it on first display. */
+	duration?: number
+	/** Video pixel size (images keep theirs in `imageVectors`), so the wall can lay tiles out without decoding. */
+	width?: number
+	height?: number
+	/** Audio only: peak levels 0..1 (see `waveform.ts`) for the wall's waveform card. */
+	waveform?: number[]
 }
 
 export interface ChunkRecord {
