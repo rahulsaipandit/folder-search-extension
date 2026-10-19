@@ -1,0 +1,21 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<link rel="icon" type="image/png" href="/assets/page-agent-64.png" />
+		<title>Folder Search - Allow access</title>
+		<style>
+			body { font: 15px/1.5 system-ui, sans-serif; max-width: 30rem; margin: 15vh auto; padding: 0 1rem; color: #111; }
+			@media (prefers-color-scheme: dark) { body { background: #111; color: #eee; } }
+			button { font: inherit; padding: 0.5rem 1rem; border-radius: 0.5rem; border: 1px solid currentColor; background: none; color: inherit; cursor: pointer; }
+			.err { color: #c0392b; }
+		</style>
+	</head>
+	<body>
+		<h1 id="title"></h1>
+		<p id="status" role="status"></p>
+		<button id="retry" hidden>Allow access</button>
+		<script type="module" src="./main.ts"></script>
+	</body>
+</html>

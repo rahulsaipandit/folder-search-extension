@@ -141,6 +141,9 @@ export const PRIOR_STATS = {
 	'text→image': { mean: 0.15, std: 0.06 },
 	'text→media': { mean: 0.15, std: 0.06 },
 	'image→image': { mean: 0.35, std: 0.12 },
+	// Query-by-media priors below are guesses (cross-modal like text→image), not measured.
+	'image→text': { mean: 0.15, std: 0.06 },
+	'audio→any': { mean: 0.15, std: 0.06 },
 } as const
 
 export type Modality = keyof typeof PRIOR_STATS
@@ -158,6 +161,37 @@ export function blendedStats(observed: ScoreStats, modality: Modality): { mean: 
 
 export function calibrate(score: number, stats: { mean: number; std: number }): number {
 	return (score - stats.mean) / stats.std
+}
+
+/**
+ * Smallest cosine drop that counts as "these results are clearly better than the rest". Embedding
+ * scores for unrelated items sit within a few hundredths of each other, so a smaller gap is noise.
+ */
+const MIN_CLEAR_GAP = 0.03
+/** Only the head of the ranking is searched for the gap; the long tail says nothing about relevance. */
+const GAP_WINDOW = 20
+
+/**
+ * Scale-free relevance cut. The z-score gate rests on guessed priors, so on small indexes it can let
+ * every item through. This looks at the actual scores instead: if the best ones are separated from
+ * the rest by one dominant gap (at least `MIN_CLEAR_GAP` and half of the head's total spread), only
+ * the items above that gap are kept. With no clear separation nothing is cut here and the z-gate
+ * decides. Returns the lowest raw score to keep.
+ */
+export function clearGapCutoff(scores: number[]): number {
+	const head = [...scores].sort((a, b) => b - a).slice(0, GAP_WINDOW)
+	if (head.length < 2) return -Infinity
+	const range = head[0]! - head[head.length - 1]!
+	let bestGap = 0
+	let cutAt = -Infinity
+	for (let i = 0; i < head.length - 1; i++) {
+		const gap = head[i]! - head[i + 1]!
+		if (gap > bestGap) {
+			bestGap = gap
+			cutAt = head[i]!
+		}
+	}
+	return bestGap >= MIN_CLEAR_GAP && bestGap >= range / 2 ? cutAt : -Infinity
 }
 
 /** Hits below this many standard deviations above the mean are not shown. */

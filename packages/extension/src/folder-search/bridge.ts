@@ -44,3 +44,10 @@ export const folderSearch = (query: string, options: Omit<SearchOptions, 'folder
 	sendToOffscreen<SearchResponse>('offscreen:folder:search', { query, options }, 2 * MINUTE)
 export const folderSimilar = (fileId: string, options: SearchOptions) =>
 	sendToOffscreen<MediaHit[]>('offscreen:folder:similar', { fileId, options }, MINUTE)
+/** Query by an image (camera / picture) or a recording. `data` is base64: messages are JSON. */
+export const folderSearchMedia = (
+	kind: 'image' | 'audio',
+	data: string,
+	mime: string,
+	options: Omit<SearchOptions, 'folderId'> & { folderIds: string[] }
+) => sendToOffscreen<SearchResponse>('offscreen:folder:search-media', { kind, data, mime, options }, 2 * MINUTE)

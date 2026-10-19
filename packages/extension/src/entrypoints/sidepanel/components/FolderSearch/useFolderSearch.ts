@@ -13,6 +13,7 @@ import {
 	folderModelStatus,
 	folderScan,
 	folderSearch,
+	folderSearchMedia,
 	folderSimilar,
 } from '@/folder-search/bridge'
 import { getFiles, getFolder, listFolders, putFolder } from '@/folder-search/db'
@@ -39,6 +40,8 @@ import type {
 	SearchKindFilter,
 	SearchResponse,
 } from '@/folder-search/types'
+
+import type { MediaQuery } from './mediaQuery'
 
 export type Screen =
 	| 'loading'
@@ -81,8 +84,11 @@ export function useFolderSearch() {
 	const [searching, setSearching] = useState(false)
 	const [searchError, setSearchError] = useState<string | null>(null)
 	const searchSeq = useRef(0)
+	/** An image or recording used as the query (camera / microphone buttons). */
+	const [mediaQuery, setMediaQuery] = useState<MediaQuery | null>(null)
 	const setQuery = useCallback((q: string) => {
 		setSimilarTo(null)
+		setMediaQuery(null)
 		setQueryRaw(q)
 	}, [])
 
@@ -357,8 +363,47 @@ export function useFolderSearch() {
 		return () => clearTimeout(t)
 	}, [query, kinds, screen, runSearch, similarTo])
 
+	/** Enter in the search box: search now instead of waiting for the typing pause. */
+	const submitSearch = () => {
+		if (query.trim() && !similarTo && !mediaQuery) void runSearch(query, kinds)
+	}
+
+	const runMediaSearch = useCallback(
+		async (mq: MediaQuery, filter: SearchKindFilter) => {
+			const seq = ++searchSeq.current
+			setSearching(true)
+			setSearchError(null)
+			try {
+				const ids = folders.filter(f => access[f.folderId] !== 'missing').map(f => f.folderId)
+				const r = await folderSearchMedia(mq.kind, mq.data, mq.mime, { folderIds: ids, kinds: filter })
+				if (seq === searchSeq.current) setResults(r)
+			} catch (e) {
+				if (seq === searchSeq.current) {
+					console.error('[folder-search] media search failed', e)
+					setSearchError(errText(e))
+					setResults(null)
+				}
+			} finally {
+				if (seq === searchSeq.current) setSearching(false)
+			}
+		},
+		[access, folders]
+	)
+
+	// Re-run the media query when the type chip changes.
+	useEffect(() => {
+		if (screen === 'main' && mediaQuery) void runMediaSearch(mediaQuery, kinds)
+	}, [mediaQuery, kinds, screen, runMediaSearch])
+
+	const searchByMedia = (mq: MediaQuery) => {
+		setQueryRaw('')
+		setSimilarTo(null)
+		setMediaQuery(mq)
+	}
+
 	const findSimilar = (hit: MediaHit) =>
 		act(async () => {
+			setMediaQuery(null)
 			const similar = await folderSimilar(hit.fileId, { folderId: hit.folderId })
 			setQueryRaw('')
 			setSimilarTo(hit.relPath)
@@ -367,7 +412,7 @@ export function useFolderSearch() {
 
 	return {
 		screen, setScreen, settings, folders, activeFolder, access, model, download, progress, running, scan, scanning, files,
-		error, setError, reindexNeeded, query, setQuery, similarTo, kinds, setKinds, results, searching, searchError,
+		error, setError, reindexNeeded, query, setQuery, submitSearch, similarTo, mediaQuery, searchByMedia, kinds, setKinds, results, searching, searchError,
 		webgpuProblem: webgpuFailure ?? model?.webgpuReason ?? null, approveCpuFallback, revokeCpuFallback,
 		begin, startDownload, cancelDownload, choose, chooseAgain, rescanSummary, updateFolder, startIndexing, reconnect,
 		removeFolder, removeModels, patchSettings, findSimilar, refreshFolders, refreshFiles, setModel,

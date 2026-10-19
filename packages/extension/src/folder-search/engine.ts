@@ -6,12 +6,14 @@ import { gemma } from '@/browser-ml/gemma-embeddings'
 
 import { deleteFolderData, getFolder } from './db'
 import { FOLDER_EVENT, type FolderEvent } from './events'
+import { decodeAudioWindows, decodeImage } from './extractors/media'
 import { Indexer, REINDEX_REQUIRED, scanFolder } from './indexer'
 import {
 	currentDownload,
 	downloadAndLoad,
 	modelStatus,
 	onDownloadProgress,
+	ensureLoaded,
 	removeModels,
 } from './modelManager'
 import { mergeSearchResponses } from './merge'
@@ -107,6 +109,31 @@ export async function handleFolderMessage(type: string, msg: Msg): Promise<unkno
 			const { folderIds, ...rest } = msg.options as Omit<SearchOptions, 'folderId'> & { folderIds: string[] }
 			const parts = await Promise.all(
 				folderIds.map(folderId => index.search(msg.query as string, { ...rest, folderId }, ix.isRunning))
+			)
+			return mergeSearchResponses(parts)
+		}
+		case 'search-media': {
+			const kind = msg.kind as 'image' | 'audio'
+			const { folderIds, ...rest } = msg.options as Omit<SearchOptions, 'folderId'> & { folderIds: string[] }
+			const s = await loadFolderSearchSettings()
+			if (!s.modelConsent) throw new Error('The search model has not been downloaded yet.')
+			if (!s.selection[kind === 'image' ? 'vision' : 'audio']) {
+				throw new Error(`Searching by ${kind} needs the ${kind === 'image' ? 'image' : 'audio'} encoder. Turn it on in Manage, then re-index.`)
+			}
+			await ensureLoaded({ ...s.selection })
+			const blob = new Blob([Uint8Array.from(atob(msg.data as string), c => c.charCodeAt(0))], { type: msg.mime as string })
+			let qVec: Float32Array | undefined
+			if (kind === 'image') {
+				;[qVec] = await gemma.embedImages([(await decodeImage(blob)).raw], s.dim)
+			} else {
+				const { windows } = await decodeAudioWindows(blob)
+				if (!windows.length) throw new Error('The recording is empty.')
+				;[qVec] = await gemma.embedAudio([windows[0]!], s.dim)
+			}
+			const ix = await getIndexer()
+			const index = await getSearchIndex()
+			const parts = await Promise.all(
+				folderIds.map(folderId => index.searchByVector(qVec!, kind, { ...rest, folderId }, ix.isRunning))
 			)
 			return mergeSearchResponses(parts)
 		}

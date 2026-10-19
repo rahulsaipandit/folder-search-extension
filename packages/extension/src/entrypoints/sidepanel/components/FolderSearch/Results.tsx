@@ -17,7 +17,7 @@ type FolderMap = Map<string, FolderRecord>
 const INITIAL_MEDIA = 9
 const INITIAL_DOCS = 6
 
-async function open(folders: FolderMap, folderId: string, relPath: string, at: { page?: number; startSec?: number } = {}) {
+export async function open(folders: FolderMap, folderId: string, relPath: string, at: { page?: number; startSec?: number } = {}) {
 	const folder = folders.get(folderId)
 	if (!folder) return toast.error('That folder is no longer indexed')
 	try {
@@ -28,7 +28,7 @@ async function open(folders: FolderMap, folderId: string, relPath: string, at: {
 	}
 }
 
-function fmtTime(sec: number): string {
+export function fmtTime(sec: number): string {
 	const m = Math.floor(sec / 60)
 	return `${m}:${String(Math.floor(sec % 60)).padStart(2, '0')}`
 }
@@ -58,8 +58,14 @@ function Tile({ hit, onOpen }: { hit: MediaHit; onOpen: () => void }) {
 					<Layers className="size-2.5" />{hit.duplicates.length + 1}
 				</span>
 			) : null}
-			<span className="absolute inset-x-0 bottom-0 truncate bg-black/60 px-1 py-0.5 text-[10px] text-white opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100">
-				{name}
+			<span className="absolute inset-x-0 bottom-0 bg-black/60 px-1 py-0.5 text-[10px] text-white opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100">
+				<span className="block truncate">{name}</span>
+				{/* Raw similarity, as in the EmbeddingGemma demo. Filename-only matches have no vector score. */}
+				{hit.score > 0 && (
+					<span className="block tabular-nums text-white/75" title="Cosine similarity to the query">
+						Relevance <span className="text-white">{hit.score.toFixed(3)}</span>
+					</span>
+				)}
 			</span>
 		</button>
 	)
@@ -122,7 +128,7 @@ export function MediaSection({
 	)
 }
 
-function Lightbox({
+export function Lightbox({
 	hits,
 	index,
 	folders,

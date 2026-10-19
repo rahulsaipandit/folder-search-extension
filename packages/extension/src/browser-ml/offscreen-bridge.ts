@@ -1,11 +1,9 @@
 /**
- * Caller-side API for running WASM/Worker-based ML (embeddings, vector search,
- * UMAP/HDBSCAN clustering) from the side panel or a content script. The manifest
- * CSP blocks those from loading a Worker/WASM directly, so these functions
- * message-pass into a Chrome offscreen document instead, where the actual
- * implementation classes (`embeddings.ts`, `vector-search.ts`, `clustering.ts`) run -
- * see `entrypoints/offscreen/main.ts`'s `handleMessage()` for the receiving side.
- * See AGENTS.md > "On-device ML" for the full pattern.
+ * Caller-side messaging into the Chrome offscreen document, where all heavy work runs (embedding
+ * model, extractors, indexer, vector search - see `entrypoints/offscreen/main.ts` and
+ * `folder-search/engine.ts`). The manifest CSP blocks Workers/WASM everywhere else, so the side
+ * panel and the full-tab pages only ever send messages; `folder-search/bridge.ts` is the typed API
+ * built on `sendToOffscreen()`. See AGENTS.md > "Folder Search".
  */
 const OFFSCREEN_URL = 'offscreen.html'
 
@@ -13,8 +11,10 @@ async function ensureOffscreenDocument(): Promise<void> {
 	try {
 		await chrome.offscreen.createDocument({
 			url: OFFSCREEN_URL,
-			reasons: ['WORKERS'] as chrome.offscreen.Reason[],
-			justification: 'Run WASM-based machine learning tasks (embeddings, vector search, clustering)',
+			// Reasons are fixed when the document is created. Folder Search only needs workers
+			// (ONNX Runtime and the pdf.js worker); it records no audio and plays none.
+			reasons: [chrome.offscreen.Reason.WORKERS],
+			justification: 'Run the on-device search model and index the selected folder without blocking the UI',
 		})
 	} catch (e: any) {
 		// "Only a single offscreen document may be created" means it already exists - that's fine.
@@ -71,34 +71,3 @@ function sendOnce<T>(type: string, payload: Record<string, unknown>, timeoutMs: 
 		})
 	})
 }
-
-export async function offscreenEmbed(texts: string[], options?: Record<string, unknown>): Promise<number[][]> {
-	const result = await sendToOffscreen<{ embeddings: number[][] }>('offscreen:embed', { texts, options })
-	return result.embeddings
-}
-
-export async function offscreenVectorSearch(
-	queryEmbedding: number[],
-	k = 10,
-	options: Record<string, unknown> = {}
-) {
-	return sendToOffscreen('offscreen:vector:search', { queryEmbedding, k, options })
-}
-
-export async function offscreenBuildVectorIndex(
-	embeddings: number[][],
-	docIds: string[],
-	documents: unknown[]
-) {
-	return sendToOffscreen('offscreen:vector:build', { embeddings, docIds, documents })
-}
-
-export async function offscreenClusterUMAP(embeddings: number[][], options: Record<string, unknown> = {}) {
-	return sendToOffscreen<{ projection: number[][] }>('offscreen:cluster:umap', { embeddings, options })
-}
-
-export async function offscreenClusterHDBSCAN(points: number[][], options: Record<string, unknown> = {}) {
-	return sendToOffscreen('offscreen:cluster:hdbscan', { points, options })
-}
-
-export { ensureOffscreenDocument }

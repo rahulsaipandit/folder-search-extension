@@ -15,12 +15,16 @@ import { AutoConfig, AutoModel, AutoProcessor, AutoTokenizer, RawVideo, env } fr
 
 import { FAKE_EMBEDDER_ENABLED, FAKE_MODEL_CACHE, fakeEmbedText } from '@/folder-search/fakeEmbedder'
 import { MAX_BATCH_TOKENS, planBatches } from '@/folder-search/batching'
+import { buildQueryInput } from '@/folder-search/chunker'
 import { componentDtype } from '@/folder-search/modelCatalog'
 import { truncateAndNormalize } from '@/folder-search/ranking'
 import type { ModelDtype } from '@/folder-search/types'
 
 env.allowLocalModels = false
 env.useBrowserCache = true
+// The only network traffic is the model download; do not tell the host which page/extension asked.
+const defaultFetch = env.fetch
+env.fetch = (input, init) => defaultFetch(input, { ...init, referrerPolicy: 'no-referrer' })
 
 /**
  * ONNX Runtime must load from the packed extension, not a CDN. By default transformers.js points
@@ -139,40 +143,56 @@ export class GemmaEmbedder {
 			this.loadedKey = key
 			return
 		}
-		const progress_callback = (e: any) => {
-			if (e?.file && options.onProgress) {
-				options.onProgress({
-					file: String(e.file),
-					loaded: Number(e.loaded ?? 0),
-					total: Number(e.total ?? 0),
-					status: String(e.status ?? ''),
-				})
+		try {
+			const progress_callback = (e: any) => {
+				if (e?.file && options.onProgress) {
+					options.onProgress({
+						file: String(e.file),
+						loaded: Number(e.loaded ?? 0),
+						total: Number(e.total ?? 0),
+						status: String(e.status ?? ''),
+					})
+				}
 			}
+			const config: any = await AutoConfig.from_pretrained(GEMMA_MODEL_ID, { progress_callback })
+			if (!options.vision) config.vision_config = null
+			if (!options.audio) config.audio_config = null
+			this.tokenizer = await AutoTokenizer.from_pretrained(GEMMA_MODEL_ID, { progress_callback })
+			this.model = await (AutoModel as any).from_pretrained(GEMMA_MODEL_ID, {
+				config,
+				device: options.device,
+				dtype: {
+					model: componentDtype(options.dtype, 'text'),
+					...(options.vision ? { vision_encoder: componentDtype(options.dtype, 'vision') } : {}),
+					// Audio is always q8, whatever the others use (model card: audio suffers most from quantization).
+					...(options.audio ? { audio_encoder: componentDtype(options.dtype, 'audio') } : {}),
+				},
+				progress_callback,
+			})
+			if (options.vision || options.audio) {
+				this.processor = await AutoProcessor.from_pretrained(GEMMA_MODEL_ID, { progress_callback })
+				// Bounds per-image tokens so image batches obey the dispatch limit (see IMAGE_SOFT_TOKENS).
+				this.processor.image_processor.max_soft_tokens = IMAGE_SOFT_TOKENS
+			}
+			this.device = options.device
+			this.hasVision = options.vision
+			this.hasAudio = options.audio
+			await this.warmUp()
+		} catch (e) {
+			// Never leave a half-loaded model behind: it would hold GPU memory while `isLoaded` lies.
+			await this.unload()
+			throw e
 		}
-		const config: any = await AutoConfig.from_pretrained(GEMMA_MODEL_ID, { progress_callback })
-		if (!options.vision) config.vision_config = null
-		if (!options.audio) config.audio_config = null
-		this.tokenizer = await AutoTokenizer.from_pretrained(GEMMA_MODEL_ID, { progress_callback })
-		this.model = await (AutoModel as any).from_pretrained(GEMMA_MODEL_ID, {
-			config,
-			device: options.device,
-			dtype: {
-				model: componentDtype(options.dtype, 'text'),
-				...(options.vision ? { vision_encoder: componentDtype(options.dtype, 'vision') } : {}),
-				// Audio is always q8, whatever the others use (model card: audio suffers most from quantization).
-				...(options.audio ? { audio_encoder: componentDtype(options.dtype, 'audio') } : {}),
-			},
-			progress_callback,
-		})
-		if (options.vision || options.audio) {
-			this.processor = await AutoProcessor.from_pretrained(GEMMA_MODEL_ID, { progress_callback })
-			// Bounds per-image tokens so image batches obey the dispatch limit (see IMAGE_SOFT_TOKENS).
-			this.processor.image_processor.max_soft_tokens = IMAGE_SOFT_TOKENS
-		}
-		this.device = options.device
-		this.hasVision = options.vision
-		this.hasAudio = options.audio
 		this.loadedKey = key
+	}
+
+	/**
+	 * Runs one real inference so WebGPU shader compilation happens during loading, not on the first
+	 * search. A failure here means the backend is unusable, so it is surfaced like any load failure.
+	 */
+	private async warmUp(): Promise<void> {
+		const inputs = this.tokenizer([buildQueryInput('a photograph')], { padding: true, truncation: true, max_length: MAX_TEXT_TOKENS })
+		await this.model(inputs)
 	}
 
 	async unload(): Promise<void> {

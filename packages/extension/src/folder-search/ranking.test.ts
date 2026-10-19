@@ -5,6 +5,7 @@ import {
 	MIN_CALIBRATED,
 	VectorMatrix,
 	blendedStats,
+	clearGapCutoff,
 	calibrate,
 	groupChunks,
 	leadingSection,
@@ -142,5 +143,26 @@ describe('VectorMatrix.addIfAbsent', () => {
 		m.removeWhere(id => id === 'a')
 		expect(m.has('a')).toBe(false)
 		expect(m.addIfAbsent('a', unit(0, 1))).toBe(true)
+	})
+})
+
+describe('clearGapCutoff', () => {
+	const keep = (scores: number[]) => {
+		const cut = clearGapCutoff(scores)
+		return scores.filter(s => s >= cut)
+	}
+	it('keeps only the match when it stands clear of the rest (one image with the text in it)', () => {
+		expect(keep([0.41, 0.55, 0.39])).toEqual([0.55])
+	})
+	it('keeps every item above a dominant gap, not just the first', () => {
+		expect(keep([0.56, 0.4, 0.55, 0.38])).toEqual([0.56, 0.55])
+	})
+	it('does not cut near-ties or an even spread', () => {
+		expect(keep([0.5, 0.49])).toEqual([0.5, 0.49])
+		expect(keep([0.5, 0.47, 0.44, 0.41, 0.38])).toHaveLength(5)
+	})
+	it('leaves a single score alone', () => {
+		expect(keep([0.3])).toEqual([0.3])
+		expect(clearGapCutoff([])).toBe(-Infinity)
 	})
 })

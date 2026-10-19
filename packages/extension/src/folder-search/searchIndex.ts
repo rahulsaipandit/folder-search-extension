@@ -24,6 +24,7 @@ import {
 	VectorMatrix,
 	blendedStats,
 	calibrate,
+	clearGapCutoff,
 	groupChunks,
 	leadingSection,
 	scoreStats,
@@ -243,13 +244,55 @@ export class SearchIndex {
 		}
 	}
 
+	/**
+	 * Query by an image or a recording instead of text (the camera / microphone buttons). The query
+	 * vector comes from the vision or audio encoder; everything shares one embedding space, so it is
+	 * scored against every stored modality. No keyword evidence exists for a media query.
+	 */
+	async searchByVector(qVec: Float32Array, source: 'image' | 'audio', opts: SearchOptions, partialIndex: boolean): Promise<SearchResponse> {
+		const t0 = performance.now()
+		const idx = await this.ensure(opts.folderId)
+		const kinds = opts.kinds ?? 'all'
+		const wantDocs = kinds === 'all' || kinds === 'documents'
+		const wantImages = kinds === 'all' || kinds === 'images'
+		const wantAv = kinds === 'all' || kinds === 'audio-video'
+		const inScope = (fileId: string) => {
+			const f = idx.files.get(fileId)
+			if (!f) return false
+			return !opts.subfolder || f.relPath.startsWith(opts.subfolder.replace(/\/?$/, '/'))
+		}
+		const mods =
+			source === 'image'
+				? { chunks: 'image→text', pages: 'image→image', images: 'image→image', units: 'image→image' }
+				: { chunks: 'audio→any', pages: 'audio→any', images: 'audio→any', units: 'audio→any' }
+		const documents = wantDocs
+			? await this.searchDocuments(idx, opts, qVec, [], false, inScope, { chunks: mods.chunks as Modality, pages: mods.pages as Modality })
+			: []
+		const media = dedupeBest([
+			...(wantImages ? this.searchImages(idx, qVec, inScope, mods.images as Modality) : []),
+			...(wantAv ? this.searchUnits(idx, qVec, inScope, mods.units as Modality) : []),
+		])
+			.sort((a, b) => b.calibrated - a.calibrated)
+			.slice(0, MAX_MEDIA_RESULTS)
+		return {
+			query: '',
+			media,
+			documents,
+			leading: leadingSection(media[0]?.calibrated ?? null, documents[0]?.calibrated ?? null, false, false),
+			exactStyle: false,
+			partialIndex,
+			tookMs: Math.round(performance.now() - t0),
+		}
+	}
+
 	private async searchDocuments(
 		idx: FolderIndex,
 		opts: SearchOptions,
 		qVec: Float32Array,
 		terms: string[],
 		exactStyle: boolean,
-		inScope: (id: string) => boolean
+		inScope: (id: string) => boolean,
+		mods: { chunks: Modality; pages: Modality } = { chunks: 'text→text', pages: 'text→image' }
 	): Promise<DocumentHit[]> {
 		const candidates = new Map<string, ChunkCandidate>()
 		const raw = new Map<string, number>()
@@ -260,7 +303,12 @@ export class SearchIndex {
 			const all = m.scores(qVec, id => inScope(chunkFileOf(id)))
 			if (!all.length) return
 			const stats = blendedStats(scoreStats(all.map(s => s.score)), modality)
-			const top = all.sort((a, b) => b.score - a.score).slice(0, k)
+			const keep = clearGapCutoff(all.map(s => s.score))
+			debugScores(m === idx.pages ? 'pages' : 'chunks', modality, all, stats, keep)
+			const top = all
+				.sort((a, b) => b.score - a.score)
+				.filter(h => h.score >= keep)
+				.slice(0, k)
 			for (const h of top) {
 				const id = m.ids[h.index]!
 				const z = calibrate(h.score, stats)
@@ -272,8 +320,8 @@ export class SearchIndex {
 				candidates.set(id, { chunkId: id, fileId: rec.fileId, page: rec.page, text: rec.text, similarity: z })
 			}
 		}
-		await addVector(idx.chunks, 'text→text', DOC_K)
-		await addVector(idx.pages, 'text→image', PAGE_K)
+		await addVector(idx.chunks, mods.chunks, DOC_K)
+		await addVector(idx.pages, mods.pages, PAGE_K)
 
 		const kwHits = terms.length
 			? scoreKeywords(terms, await getPostings(opts.folderId, terms), { n: Math.max(1, idx.chunks.size) }).slice(0, KEYWORD_K)
@@ -328,13 +376,16 @@ export class SearchIndex {
 		return out
 	}
 
-	private searchImages(idx: FolderIndex, qVec: Float32Array, inScope: (id: string) => boolean): MediaHit[] {
+	private searchImages(idx: FolderIndex, qVec: Float32Array, inScope: (id: string) => boolean, modality: Modality = 'text→image'): MediaHit[] {
 		if (!idx.images.size) return []
 		const all = idx.images.scores(qVec, inScope)
 		if (!all.length) return []
-		const stats = blendedStats(scoreStats(all.map(s => s.score)), 'text→image')
+		const stats = blendedStats(scoreStats(all.map(s => s.score)), modality)
+		const keep = clearGapCutoff(all.map(s => s.score))
+		debugScores('images', modality, all, stats, keep)
 		return all
 			.sort((a, b) => b.score - a.score)
+			.filter(h => h.score >= keep)
 			.slice(0, MEDIA_K)
 			.map(h => ({ h, z: calibrate(h.score, stats) }))
 			.filter(x => x.z >= MIN_CALIBRATED)
@@ -357,14 +408,16 @@ export class SearchIndex {
 	private searchUnits(
 		idx: FolderIndex,
 		qVec: Float32Array,
-		inScope: (id: string) => boolean
+		inScope: (id: string) => boolean,
+		modality: Modality = 'text→media'
 	): MediaHit[] {
 		if (!idx.units.size) return []
 		const all = idx.units.scores(qVec, id => inScope(unitFileOf(id)))
 		if (!all.length) return []
-		const stats = blendedStats(scoreStats(all.map(s => s.score)), 'text→media')
+		const stats = blendedStats(scoreStats(all.map(s => s.score)), modality)
 		const hits: MediaHit[] = []
-		for (const h of all.sort((a, b) => b.score - a.score).slice(0, MEDIA_K)) {
+		const keep = clearGapCutoff(all.map(s => s.score))
+		for (const h of all.sort((a, b) => b.score - a.score).filter(h => h.score >= keep).slice(0, MEDIA_K)) {
 			const z = calibrate(h.score, stats)
 			if (z < MIN_CALIBRATED) continue
 			const unitId = idx.units.ids[h.index]!
@@ -434,6 +487,24 @@ export class SearchIndex {
 		const idx = await this.ensure(folderId)
 		return { chunks: idx.chunks.size, pages: idx.pages.size, images: idx.images.size, units: idx.units.size }
 	}
+}
+
+/** Offscreen-console trace of the numbers behind a cutoff, so thresholds can be tuned on real data. */
+function debugScores(
+	label: string,
+	modality: Modality,
+	all: { score: number }[],
+	stats: { mean: number; std: number },
+	gapCut: number
+): void {
+	const top = all
+		.map(s => s.score)
+		.sort((a, b) => b - a)
+		.slice(0, 5)
+		.map(n => n.toFixed(3))
+	console.debug(
+		`[folder-search] ${label} ${modality}: n=${all.length} top=[${top.join(', ')}] prior-cut=${(stats.mean + MIN_CALIBRATED * stats.std).toFixed(3)} gap-cut=${Number.isFinite(gapCut) ? gapCut.toFixed(3) : 'none'}`
+	)
 }
 
 /** Chunk ids are `${fileId}#${idx}`, `${fileId}#p${page}` or `${fileId}#name`; file ids may contain '#'. */

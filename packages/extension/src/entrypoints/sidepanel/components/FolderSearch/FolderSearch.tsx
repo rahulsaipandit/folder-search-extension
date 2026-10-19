@@ -1,13 +1,14 @@
-import { ArrowLeft, ExternalLink, Loader2, Search, Settings, X } from 'lucide-react'
+import { ArrowLeft, ExternalLink, Loader2, Settings } from 'lucide-react'
 import { useEffect, useMemo, useRef } from 'react'
 
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Toaster } from '@/components/ui/sonner'
 import type { SearchKindFilter } from '@/folder-search/types'
 
+import { BrowseView } from './Browse'
 import { IndexBanner, ReconnectCard } from './IndexBanner'
 import { SearchResults } from './Results'
+import { SearchBar } from './SearchBar'
 import { FolderStep, ModelConsent, ModelProgress, PreScan, Unsupported, Welcome } from './Setup'
 import { useFolderSearch } from './useFolderSearch'
 
@@ -161,22 +162,20 @@ export function FolderSearch({ onBack, wide = false }: Props) {
 							<Button size="sm" className="h-7 text-xs" onClick={() => void fs.startIndexing({ reindex: true })}>Re-index now</Button>
 						</div>
 					)}
-					<div className="relative">
-						<Search className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" aria-hidden />
-						<Input
+						<SearchBar
 							ref={searchRef}
-							value={query}
-							onChange={e => fs.setQuery(e.target.value)}
-							placeholder="Search your files…  ( / )"
-							aria-label="Search your files"
-							className="h-8 pl-8 pr-8 text-xs"
+							query={query}
+							onQuery={fs.setQuery}
+							onSubmit={fs.submitSearch}
+							mediaQuery={fs.mediaQuery}
+							onMedia={fs.searchByMedia}
+							onClear={() => fs.setQuery('')}
+							onAddFolder={() => void fs.choose()}
+							canImage={Boolean(settings?.selection.vision)}
+							canAudio={Boolean(settings?.selection.audio)}
+							onError={fs.setError}
+							busy={searching}
 						/>
-						{query && (
-							<button className="absolute right-2 top-2 text-muted-foreground" onClick={() => fs.setQuery('')} aria-label="Clear search">
-								<X className="size-4" />
-							</button>
-						)}
-					</div>
 					<div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter by type">
 						{FILTERS.map(f => (
 							<button
@@ -197,8 +196,7 @@ export function FolderSearch({ onBack, wide = false }: Props) {
 					)}
 					{error && <p className="text-xs text-destructive break-words" role="alert">{error}</p>}
 					{searchError && <p className="text-xs text-destructive break-words" role="alert">Search failed: {searchError}</p>}
-					{searching && <Loader2 className="mx-auto size-4 animate-spin text-muted-foreground" aria-label="Searching" />}
-					{!query && !fs.similarTo && examples.length > 0 && (
+					{!query && !fs.similarTo && !fs.mediaQuery && examples.length > 0 && (
 						<div className="flex flex-wrap gap-1.5 text-xs">
 							<span className="text-muted-foreground">Try:</span>
 							{examples.map(e => (
@@ -206,7 +204,10 @@ export function FolderSearch({ onBack, wide = false }: Props) {
 							))}
 						</div>
 					)}
-					{results && (query || fs.similarTo) && (
+					{!query && !fs.similarTo && !fs.mediaQuery && (
+						<BrowseView files={files} filter={kinds} folders={folderMap} wide={wide} onSimilar={h => void fs.findSimilar(h)} />
+					)}
+					{results && (query || fs.similarTo || fs.mediaQuery) && (
 						<SearchResults response={results} query={query} folders={folderMap} wide={wide} onSimilar={h => void fs.findSimilar(h)} />
 					)}
 				</div>
