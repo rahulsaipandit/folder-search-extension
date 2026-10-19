@@ -1069,3 +1069,112 @@ The nesting rules for audio and video were checked against the library source, n
 - the glass media wall (including video playing into tiles) on a real GPU, in the side panel, and alongside indexing (§4B.7); the
   query-by-image and query-by-audio paths (§4B.2); and the camera/microphone permission flow
   (`media-permission.html`).
+
+## References
+https://tpiros.dev/blog/embeddinggemma-2-in-the-browser/
+
+Running it in a browser tab
+The ONNX export lives at onnx-community/embeddinggemma-2-ONNX, and Transformers.js 4.3.1 knows the embedding_gemma2 architecture out of the box.
+We already do this, and the code even cites that article. Here is how each point from the post shows up in our code.
+
+**What we already do, in [gemma-embeddings.ts](packages/extension/src/browser-ml/gemma-embeddings.ts):**
+- **Model:** It loads the ONNX export `onnx-community/embeddinggemma-2-ONNX` (`GEMMA_MODEL_ID`).
+- **Transformers.js version:** The lockfile resolves `@huggingface/transformers` to 4.3.1 (installed in `node_modules`), the version the post uses. `package.json` says `^4.2.0`, so a fresh install picks up the same release. You could raise the floor to `^4.3.1` to pin it.
+- **No pipeline:** It uses `AutoConfig`, `AutoProcessor` and `AutoModel` directly, not `feature-extraction`, so a skipped encoder is never downloaded.
+- **Encoder skipping:** Lines 165–166 set `config.vision_config = null` and `config.audio_config = null` when those encoders aren't selected. That is the same trick, and it is how the consent screen's checkboxes become real download savings.
+- **Per-component dtype:** The `dtype: { model, vision_encoder, audio_encoder }` object is built at lines 176–181, and audio is always q8, as in the post.
+
+**Gotchas from the post that the code also handles:**
+- **Flat versus nested image lists:** It wraps each image in its own list (`.map(img => [img])`), so a batch doesn't blend into one vector.
+- **WASM memory:** It embeds one image per call on WASM, citing the same post.
+- **Re-normalizing:** Truncated vectors are re-normalized in `truncateAndNormalize`.
+- **Token limit per batch:** Image batch size is limited (`IMAGE_BATCH`, `IMAGE_SOFT_TOKENS`) to stay under the WebGPU dispatch limit. I didn't check the exact numbers.
+- **Local runtime files:** ONNX Runtime files are served from `public/ort/`, not jsDelivr.
+- **Audio decoding:** `AudioContext` use is in [media.ts](packages/extension/src/folder-search/extractors/media.ts), which runs only in the offscreen document.
+
+**Two checks I haven't done:**
+- **The WASM fallback problem:** The post says q4 and q8 failed on WASM with a missing `GatherBlockQuantized` kernel, and that it fell back to fp16, roughly doubling the download to about 1.2 GB. My search for `componentDtype` returned nothing, so I haven't confirmed how our code picks dtype on the WASM path. If it keeps q4 or q8 there, users without WebGPU could hit a load failure. That would be a real bug. The consent screen's "slower WASM path" warning also wouldn't mention the larger download. I can check `componentDtype` and test the WASM path next.
+- **Batch limits:** I haven't compared our token-limit numbers with the ~2,700 figure. The code comments suggest it is handled, but I haven't verified it.
+
+
+https://developers.googleblog.com/embeddinggemma-2-the-developer-guide/
+Embed Text and Code with Task Prompts
+EmbeddingGemma 2 is trained with short task instructions to steer representations for specific tasks. Set prompt_name in encode() to add it for you:
+| Use for         | prompt_name          | Prefix it adds                         |
+| --------------- | -------------------- | -------------------------------------- |
+| Search queries  | `SearchQuery`        | `task: search result \\| query:`       |
+| Questions       | `QuestionAnswering`  | `task: question answering \\| query:`  |
+| Claims to check | `FactChecking`       | `task: fact checking \\| query:`       |
+| Code queries    | `CodeRetrieval`      | `task: code retrieval \\| query:`      |
+| Documents       | `Document`           | `title: none \\| text:`                |
+| Classification  | `Classification`     | `task: classification \\| query:`      |
+| Clustering      | `Clustering`         | `task: clustering \\| query:`          |
+| Similarity      | `SentenceSimilarity` | `task: sentence similarity \\| query:` |
+
+Each example below is the full string the model would see. The prefixes come from your table and the ONNX model card. The ideas for applying them in Folder Search are my suggestions. None are tested, and I haven't measured whether they beat plain `SearchQuery`.
+
+**Asymmetric tasks (query side).** Only the query gets the prefix. Documents still use `title: … | text: …`.
+
+| Prefix | Example input | When it makes sense here |
+| --- | --- | --- |
+| `SearchQuery` | `task: search result \| query: beach sunset with dog` | The default for the search box. Already in use. |
+| `QuestionAnswering` | `task: question answering \| query: When does the Acme contract expire?` | Ask mode, or when the box text is clearly a question. The answer sits inside a passage, so this fits better than keyword-style search. |
+| `FactChecking` | `task: fact checking \| query: The Q3 budget was approved in September` | Finding the passage that confirms or contradicts a statement. A possible "verify this claim against my files" feature. It isn't part of search today. |
+| `CodeRetrieval` | `task: code retrieval \| query: function that parses ISO dates` | Only if code files are indexed, which the plan defers to opt-in. Use it on code queries only. |
+
+**Symmetric tasks.** Per the card, every input gets the same prefix, so there is no query/document split.
+
+| Prefix | Example input | When it makes sense here |
+| --- | --- | --- |
+| `SentenceSimilarity` | `task: sentence similarity \| query: Invoice from Acme, March` | Comparing two pieces of text for sameness, such as finding near-duplicate documents or "more like this document". |
+| `Clustering` | `task: clustering \| query: <chunk text>` | Grouping files by topic, for example auto-folders or a topic map in Browse. Both sides get the same prefix. |
+| `Classification` | `task: classification \| query: <text>` | Assigning a file to a label such as "invoice", "receipt" or "contract", for example to feed a filter chip. |
+
+**Prefixes apply to text only.** Images, audio and video never get one.
+- **Find similar for images:** It compares one image's vector to other images with no text involved, so no prefix is involved either.
+- **Text query to images:** The query still uses `SearchQuery`.
+- **Documents for clustering or classification:** If you do either on documents, embed them with the symmetric prefix as separate vectors. Don't reuse the search-index vectors, because the prefix changes the vector.
+
+**Practical points:**
+- **Prefixes can't be mixed.** A vector built with one prefix isn't comparable to one built with another. Don't switch the prefix on an existing index. Changing how documents are embedded would need a re-index. The index signature currently records model, dtype, dimension and schema version. If document prefixes ever change, bump the schema version.
+- **Only query-side prefixes are cheap to add.** Using `QuestionAnswering` for question-style queries, or `CodeRetrieval` for code, only changes the query vector, so no re-index is needed.
+- **The question-vs-search switch needs a rule.** The prefix has to be chosen before embedding. Ask mode knows it's a question. For the plain search box I would not guess automatically without testing, because a wrong guess lowers recall.
+- **Not worth it for now:** Folder search is an asymmetric retrieval task, so `SearchQuery` plus `Document` is the right pair. `QuestionAnswering` for Ask mode is the only extra I'd test first. The symmetric ones only matter if you build deduplication, topic grouping or auto-labels.
+
+We don't use sentence-transformers. The extension uses **transformers.js**, the `@huggingface/transformers` npm package, version `^4.2.0` ([package.json:40](packages/extension/package.json#L40)).
+
+**What each library is:**
+- **sentence-transformers** is the Python library you linked. It runs on PyTorch in a Python process and has the `encode(prompt_name=…)` helper. It can't run inside a Chrome extension.
+- **transformers.js** is the JavaScript port of Hugging Face Transformers. It runs ONNX models in the browser through ONNX Runtime Web, on WebGPU or WASM. It's what the reference space uses.
+
+**How we use it** ([gemma-embeddings.ts](packages/extension/src/browser-ml/gemma-embeddings.ts)):
+- **Model:** It loads `onnx-community/embeddinggemma-2-ONNX`.
+- **Loading:** It loads the config, tokenizer, processor and model with `AutoConfig`, `AutoTokenizer`, `AutoProcessor` and `AutoModel`. The processor is loaded only when the image or audio encoders are wanted.
+- **Text:** It tokenizes the prefixed strings and runs the model.
+- **Media:** Images, audio and video go through `processor(...)`.
+- **Truncation:** Vectors are shortened and normalized by our own `truncateAndNormalize`, not by the library.
+
+Because there is no `encode()` helper, the task prefixes, truncation and normalization are hand-written in our code. That matches what I said about prefixes in my last answer.
+
+**Other libraries in the stack:**
+- **Local ONNX runtime:** ONNX Runtime files are served from the extension's own `public/ort/` folder, because the extension's security policy blocks the library's default CDN loading.
+- **PDFs:** pdf.js (`pdfjs-dist ^5.7`).
+
+https://www.mindstudio.ai/blog/run-embeddinggemma-2-locally 
+
+**The extension already uses 256.** [settings.ts:5](packages/extension/src/folder-search/settings.ts#L5) sets `DEFAULT_DIM = 256`, and nothing in the folder-search code overrides it. I'd keep 256.
+
+**How it works now:**
+- **Truncation:** The model produces 768 numbers per item. `truncateAndNormalize` in [ranking.ts:102](packages/extension/src/folder-search/ranking.ts#L102) keeps the first 256 and rescales them to unit length. The rescale matters for dot-product search, and the article doesn't cover it.
+- **Settings:** The dimension is a setting (128, 256, 512 or 768). It is stored in the index signature, so changing it makes the app ask for a re-index.
+
+**What the article supports:**
+- **768 to 256:** Storage drops about 3×. In its image test, all six matches stayed identical after truncating to 256.
+- **256 to 128:** Google's table shows quality dropping off, especially for image, video and audio.
+- **What it doesn't give:** It only tested that one reduction on a small set. It reports no 512 results, no speed figures and no exact quality-loss numbers. So it supports 256 as a sensible default but doesn't prove it.
+
+**Why I'd stay at 256:**
+- **Storage:** A 20,000-item index is about 20 MB of vectors at 256 and about 61 MB at 768. That is raw vector size only, before IndexedDB overhead.
+- **Search cost:** The search loop scans every stored vector, and its work scales directly with the dimension. At 256 it does a third of the work of 768. I haven't measured the speed.
+- **Video indexing:** Video indexing stores the most vectors, so it benefits most from the smaller size.
+- **Why not 128:** The article specifically warns against 128 for images, video and audio.
