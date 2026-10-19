@@ -1,6 +1,6 @@
 {
     "extName": {
-		"message": "image-text-search",
+		"message": "Smart Search",
         "audit": "RP_DONE"
     },
     "extDescription": {
@@ -8,7 +8,7 @@
         "audit": "RP_DONE"
     },
     "extActionTitle": {
-		"message": "Open Image-Text Search",
+		"message": "Open Smart Search",
         "audit": "RP_DONE"
     }
 }

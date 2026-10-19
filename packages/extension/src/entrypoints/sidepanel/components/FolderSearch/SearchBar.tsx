@@ -203,7 +203,7 @@ export const SearchBar = forwardRef<HTMLInputElement, Props>(function SearchBar(
 				onFile(e.dataTransfer.files[0])
 			}}
 		>
-			<div className="flex h-10 items-center gap-1 rounded-full border bg-background px-1.5 shadow-sm focus-within:ring-2 ring-ring">
+			<div className="flex h-10 items-center gap-1 rounded-full border border-foreground/40 bg-neutral-200/70 dark:bg-muted px-1.5 shadow-sm focus-within:ring-2 ring-ring">
 				<button
 					className={iconBtn}
 					title="Add a folder or search with a file"
