@@ -318,11 +318,21 @@ function AskInner({ settings, query, docs, folders }: { settings: UnifiedSetting
 		<section aria-label="Ask" className="rounded-lg border p-2.5 space-y-2">
 			<div className="flex items-center gap-2">
 				<h3 className="text-xs font-medium flex-1">Answer from these files</h3>
-				<Button size="sm" variant="outline" className="h-7 text-xs" disabled={!llm || busy} onClick={ask} title={llm ? undefined : 'Choose a text AI provider in Settings first'}>
+				<Button size="sm" variant="outline" className="h-7 text-xs" disabled={!llm || busy} onClick={ask} title={llm ? undefined : 'Choose a private AI provider first'}>
 					{busy ? <Loader2 className="size-3 animate-spin" /> : <Sparkles className="size-3" />} Ask
 				</Button>
 			</div>
-			{!llm && <p className="text-[11px] text-muted-foreground">Needs a configured AI provider (Settings). Search works without one.</p>}
+			{!llm && (
+				<p className="text-[11px] text-muted-foreground">
+					Needs a private AI provider (a local server or an in-browser model). Search works without one.{' '}
+					<button
+						className="underline"
+						onClick={() => void chrome.tabs.create({ url: chrome.runtime.getURL('ai-provider-settings.html') })}
+					>
+						Choose provider
+					</button>
+				</p>
+			)}
 			{error && <p className="text-xs text-destructive break-words" role="alert">{error}</p>}
 			{answer && (
 				<div className="space-y-1.5 text-xs">

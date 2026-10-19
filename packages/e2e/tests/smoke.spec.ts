@@ -14,7 +14,7 @@ test('folder-search tab renders the Welcome screen without console errors', asyn
 
 	await expect(page.getByRole('heading', { name: 'Folder Search' })).toBeVisible()
 	await expect(page.getByText('Find files by describing them')).toBeVisible()
-	await expect(page.getByRole('button', { name: 'Get started' })).toBeVisible()
+	await expect(page.getByRole('button', { name: /Set up/ })).toBeVisible()
 	expect(errors.filter(e => !KNOWN_BENIGN.some(re => re.test(e)))).toEqual([])
 })
 

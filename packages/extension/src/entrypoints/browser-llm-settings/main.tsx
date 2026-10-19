@@ -124,18 +124,19 @@ function BrowserLLMSettingsPage() {
 			await saveSettings({
 				currentLocalModel: modelId,
 				currentLocalModelContextWindow: contextWindow,
-				apiProvider: 'browser',
+				textLLMProvider: 'browser',
+				textLLMModel: modelId,
 			})
 			const verify = await loadSettings()
 			console.log('[BrowserLLMSettings] saveSettings() done, read-back settings', {
 				currentLocalModel: verify.currentLocalModel,
 				currentLocalModelContextWindow: verify.currentLocalModelContextWindow,
-				apiProvider: verify.apiProvider,
+				textLLMProvider: verify.textLLMProvider,
 			})
 
 			setCurrentModel(modelId)
 			setProgress(100)
-			setSuccess(`${modelId} downloaded and cached. Provider set to Browser LLM - close this tab to return to chat.`)
+			setSuccess(`${modelId} downloaded and cached. Provider set to Browser LLM - close this tab to return to Folder Search.`)
 		} catch (err: any) {
 			console.log('[BrowserLLMSettings] handleLoad() failed', err)
 			setError(err?.message || String(err))
@@ -167,30 +168,19 @@ function BrowserLLMSettingsPage() {
 						Models are downloaded once and cached locally on your device.
 					</p>
 					<p className="text-xs text-muted-foreground">
-						🔒 100% Private - all processing happens on your computer. Your conversations never leave this device.
+						🔒 100% Private - all processing happens on your computer. Your files and questions never leave this device.
 					</p>
 					<div className="p-3 rounded-md border border-blue-500/20 bg-blue-500/5 text-xs text-foreground">
-						Click <strong>Load Browser LLM</strong> below to download a model. Once downloaded, go to{' '}
-						<strong>API Endpoints</strong> in Settings and select <strong>Browser LLM</strong> as your provider -
-						no API key needed.
+						Click <strong>Load Browser LLM</strong> below to download a model. Once downloaded it is selected
+						automatically as the provider for <strong>Answer from these files</strong>. No API key needed.
 					</div>
 				</div>
 
 				{/* Model setup steps */}
 				<div className="space-y-3">
 					<div className="p-3 rounded-md border bg-muted/30 space-y-1">
-						<p className="text-xs font-semibold">1. Embeddings model</p>
-						<p className="text-xs text-muted-foreground">Powers semantic search across your documents.</p>
-						<p className="text-[11px] text-muted-foreground">
-							Converts text into numerical vectors so similar content can be found by meaning, not just keywords.
-						</p>
-						<p className="text-[11px] font-mono mt-1">
-							Model: <strong>intfloat/multilingual-e5-small</strong> · 384D · 100+ languages
-						</p>
-					</div>
-					<div className="p-3 rounded-md border bg-muted/30 space-y-1">
-						<p className="text-xs font-semibold">2. Language model</p>
-						<p className="text-xs text-muted-foreground">Enables AI chat directly in the extension.</p>
+						<p className="text-xs font-semibold">Language model</p>
+						<p className="text-xs text-muted-foreground">Powers “Answer from these files” without sending anything off your device.</p>
 						<p className="text-[11px] text-muted-foreground">
 							Generates responses to your questions using WebLLM with WebGPU acceleration where available.
 						</p>

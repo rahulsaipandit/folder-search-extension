@@ -8,7 +8,7 @@ Implementation notes (deviations from the proposal below):
 - Vector search is brute force over contiguous `Float32Array`s (`ranking.ts` `VectorMatrix`); no benchmark has been run, so the 50k-vector ceiling in §3.4 is still an estimate.
 - Calibration (§6.2) z-scores each query against the folder's own score distribution, shrunk toward unmeasured priors for tiny indexes. Priors and the 2.5σ display threshold need tuning on labeled data (§13).
 - Keyword scoring is BM25 without length normalization (chunk lengths are bounded by the chunker).
-- Strings are English literals in the components (the existing i18n catalog only carries the interface-language keys); moving them behind `t()` is outstanding work (§4A.4).
+- Most UI strings are still English literals; the i18n infrastructure and a language picker are live, and moving the rest behind `t()` is outstanding work (§4A.4, §14.7).
 - `unlimitedStorage` (§8, §13.5) is **not** added to the manifest; that is a Web Store posture decision.
 - The EmbeddingGemma 2 calls in `browser-ml/gemma-embeddings.ts` follow the ONNX model card but have only been compile- and bundle-checked, never executed.
 
@@ -195,10 +195,9 @@ existing `BrowserVectorSearch` index. Decide with a benchmark, not upfront.
 
 ### 4.1 First run
 
-1. Entry: new skill **"Folder Search"** in Agent Library (see AGENTS.md "Adding a New Skill":
-   `SPECIAL_SKILL_ROUTES` + `skills` array in `AgentLibrary.tsx`; add `'folder-search'` to the
-   `View` union in `types.ts`; handle in `App.tsx`). Opens a panel view; a "full tab" page
-   (`entrypoints/folder-search/`) is offered for big libraries.
+1. Entry: the side panel **is** Folder Search (§14.6): clicking the toolbar icon opens it directly,
+   with no agent chat, library or view router. A "full tab" page (`entrypoints/folder-search/`)
+   is offered for big libraries.
 2. **Step 1 – Model consent screen** (nothing downloaded yet):
    - What will be downloaded, size per model, from where (huggingface.co), that it is cached
      locally and one-time, that files never leave the device.
@@ -261,17 +260,15 @@ wider grid.
 
 | Surface | Purpose | Entry point |
 | --- | --- | --- |
-| **Folder Search view** (side panel) | Setup stepper, search, results | Agent Library card "Folder Search" → `panelView: 'folder-search'` |
+| **Folder Search view** (side panel) | Setup stepper, search, results | The extension's side panel (its only view) |
 | **Folder Search tab** (`entrypoints/folder-search/`) | Same app, wide gallery, big libraries | "Open in tab" icon in the view header |
-| **Folder Search settings** (`folder-search-settings.html`) | Models, folder, excludes, storage, remove | "Manage" row in `ConfigPanel.tsx`; gear icon in the view header |
-| **ConfigPanel row** | Status summary + link-out only (see 4A.6) | Settings |
+| **Folder Search settings** (`folder-search-settings.html`) | Models, folder, excludes, storage, remove | Gear icon in the view header |
 | **Lightbox / PDF viewer** | Preview an image or PDF page with highlight | Click a result |
 
 ### 4A.2 The journey, screen by screen
 
-**Screen 0 — Discover.** The user opens the Agent Library and sees a "Folder Search" card
-("Search your photos and documents by meaning. Private — runs on your device."). Clicking it
-opens the Folder Search view. Nothing is downloaded or read yet.
+**Screen 0 — Open.** The user clicks the toolbar icon and lands on Folder Search (the welcome
+screen on first run). Nothing is downloaded or read yet.
 
 **Screen 1 — Welcome & privacy (first run only).**
 
@@ -438,7 +435,7 @@ deleted. Original files are never touched, and the dialog says so.
 - Every control is keyboard reachable; focus returns to the trigger when the lightbox closes.
 - Images get `alt` = filename; scores are never the only signal (no color-only meaning).
 - Progress uses `role="progressbar"`; live-region updates are throttled.
-- All strings go through `t()`; example queries and file names are user data and are not translated.
+- Strings are meant to go through `t()` (§14.7); example queries and file names are user data and are not translated.
 - Light/dark via existing tokens; thumbnails sit on a neutral surface so transparency is visible.
 
 ### 4A.5 Component map
@@ -459,26 +456,13 @@ State lives in one `useFolderSearch()` hook (setup phase, index status, query, r
 talks to the offscreen document through the bridge in §3.3. The setup phase is persisted so
 closing and reopening the panel resumes at the right screen.
 
-### 4A.6 ConfigPanel.tsx integration
+### 4A.6 Settings entry (superseded)
 
-`ConfigPanel.tsx` is the navigation agent's settings page (LLM provider, theme, language, voice).
-Folder Search adds **one row only**, the same way it already links out to
-`browser-llm-settings.html`, `content-access-settings.html` and `vault-settings.html`:
-
-```
-Folder Search
-│ 📁 Folder Search          ● Ready · 4,620 files │   or "Not set up" / amber "Reconnect"
-│ Models 283 MB (q4) · last scan 10 min ago        │
-│                                   [ Manage ]     │  → folder-search-settings.html
-```
-
-- Placed next to "Edit Content Access Policy", same row style (`Button variant="outline" size="sm"`).
-- Reads status only (from the `folderSearch` store); it must **not** be wired into
-  `handleSave` / `UnifiedSettings`, which saves everything at once.
-- Model download, folder picking and removal never happen inside ConfigPanel: too large for the
-  panel, and the folder picker needs a user gesture on the page that owns the handle.
-- Any optional "Ask" mode LLM resolves via `getTextLLMConfig(settings)`; no new provider
-  selector is added here.
+An earlier revision added a status row to `ConfigPanel.tsx`. With no agent chat there is no
+ConfigPanel, so settings are reached only through the gear in the Folder Search header (Manage
+page). Model download, folder picking and removal always happen on pages that own the handle,
+never inside a small panel. An optional "Ask" mode resolves its LLM via `getTextLLMConfig(settings)`;
+its provider is chosen on the existing AI-provider settings page.
 
 ## 5. Indexing pipeline
 
@@ -575,9 +559,10 @@ needed.
   existing LLM-download path rather than assuming.
 - **Web Store listing:** privacy policy must state that selected-folder contents are processed
   locally and never uploaded. Matches `designGuidelines.md` ("listing matches actual behavior").
-- The tab-access policy engine (`accessListControl/`) governs web tabs; it does not apply to
-  local folders, but the folder feature must not expose file content to the web-automation
-  agent unless the user explicitly invokes "Ask" mode.
+- The tab-access policy engine (`accessListControl/`) is a **supported module** (§14.7). It decides
+  whether a web page or host may be read; it does not apply to local folders. Folder Search does not
+  call it today, because the extension reads no web pages. File content must never reach any
+  web-facing component, and the only consumer of file excerpts is the user-invoked "Ask" mode.
 
 ## 9. Privacy & security
 
@@ -590,6 +575,9 @@ needed.
   very broad (home dir, drive root).
 - Extractors parse untrusted files: run only in the offscreen doc, cap sizes/pages/time per file,
   and treat a parser exception as a per-file error, never a crash of the whole run.
+- Results are opened through blob URLs, which belong to the extension's origin. Only inert types
+  (PDF, text, images, audio/video) are opened in a tab; **HTML, XML and SVG are always saved as a
+  download**, never rendered, so a hostile file in the folder cannot run script as the extension.
 
 ## 10. Performance targets (to validate)
 
@@ -709,6 +697,54 @@ file with the winning timestamp kept.
    - nesting rules, confirmed in the transformers.js 4.3.1 processor source: a flat list of
      **images** is one sample (wrap each image: `[[img]]`), while a flat list of **audio clips or
      videos** is one sample per item. Audio and video are embedded one item per call.
+
+### 14.6 Product decisions (2026-10-18)
+
+1. **Folder Search is the whole product.** There is no agent chat: the side panel renders Folder
+   Search only. The Agent Library card, `ConfigPanel` row and `View` entry were removed.
+2. **Welcome screen** keeps the promise, the three privacy points and the example chips. Its button
+   reads "Set up (one-time N MB download)" and leads to model consent *before* any folder is
+   picked. "Try a sample folder" is deferred (needs shipped sample data and an untested path).
+3. **Demo Mode alert** is not restored: it warned about the agent chat's shared demo endpoint,
+   which no longer applies.
+4. **Offscreen bridge:** the call-audio, speech-to-text and decision APIs are gone, and the
+   offscreen document is created with `WORKERS` only. The cold-start retry stays. The leftover
+   `offscreen:audio:analyse` stub was removed from the offscreen router.
+5. **Dead code removed.** The agent engine, widgets, history, tours, skills, memory, the legacy
+   offscreen ML (e5 embeddings, vector search, UMAP/HDBSCAN, Pyodide), the hub, the content-access
+   settings page, the content script, analytics, the demo LLM endpoint and the cloud LLM providers are
+   gone, along with the tab, scripting, activeTab, alarms and host permissions they needed. The
+   manifest now requests exactly `sidePanel`, `storage` and `offscreen`; the offscreen document
+   uses the `WORKERS` reason only. Kept on purpose: `accessListControl` and `i18n` (§14.7).
+6. **Ask mode is private-only.** It sends file excerpts to its LLM, so the only providers are a local
+   OpenAI-compatible server or an in-browser WebLLM model. Cloud providers and any shared demo
+   endpoint would contradict the "nothing leaves your device" promise and were removed. Previously
+   saved cloud/demo settings are ignored on load, so Ask shows "choose a provider".
+
+### 14.7 Kept, supported modules
+
+Both are intentionally retained and maintained alongside Folder Search.
+
+**`accessListControl/` (tab access policy engine).** A pure, fail-closed policy for "may the
+extension read this web page or host?". Order: denylist → BLOCK; allowlist → ALLOW and skips page
+heuristics (a deliberate carve-out, e.g. archive mirrors); otherwise any heuristic plugin
+(`PasswordFieldPlugin`, `SensitiveFieldPlugin`, `KeywordPlugin`, which needs 2+ distinct terms) →
+BLOCK; optional user-gesture gate; else ALLOW. It uses no Chrome APIs and needs no permission.
+- Status: supported and unit-tested (`policy-engine.test.ts`), **not wired into the runtime**, since
+  Folder Search reads no web pages. Any future feature that touches a web tab or host must call
+  `PolicyEngine.evaluate()` first and treat BLOCK as final.
+- Only add a host to `DEFAULT_ALLOWLIST` when the *page* is trusted, because allowlisting bypasses
+  the heuristics.
+
+**`i18n/` (interface language).** `I18nProvider` wraps the side panel, the full-tab page and the
+Manage page. Languages: en-US (reference), de-DE, zh-CN, zh-HK. The language follows the browser
+until the user picks one in **Manage → Interface language**; it is then stored as
+`UnifiedSettings.uiLanguage`.
+- Rules: new UI strings go through `t()` and must be added to **all four** locales (`locales.test.ts`
+  fails if keys or `{{placeholders}}` differ). User data (file names, queries, snippets) is never
+  translated.
+- Status: the infrastructure and the language picker are live; only the picker's own strings are
+  translated so far. Moving the remaining Folder Search strings behind `t()` is outstanding work.
 
 ### 14.4 Still unverified here
 

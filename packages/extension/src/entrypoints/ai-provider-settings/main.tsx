@@ -15,7 +15,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { listenThemeChanges } from '@/lib/theme/syncTheme'
 import { loadSettings, saveSettings, UnifiedSettings } from '@/shared/settings'
-import { isDemoProvider } from '@/llm/providers/adapter'
 import '../../assets/index.css'
 
 listenThemeChanges()
@@ -142,7 +141,7 @@ async function detectLoadedModel(endpoint: string): Promise<string | null> {
   if (origin && /\/v1\/?$/.test(origin.pathname)) {
     try {
       const data = await fetchJson(`${origin.origin}/api/v0/models`)
-      const models: Array<{ id: string; state?: string }> = data?.data ?? []
+      const models: { id: string; state?: string }[] = data?.data ?? []
       const loaded = models.find(m => m.state === 'loaded')
       if (loaded) return loaded.id
     } catch {
@@ -152,7 +151,7 @@ async function detectLoadedModel(endpoint: string): Promise<string | null> {
   }
 
   const data = await fetchJson(`${endpoint}/models`)
-  const models: Array<{ id: string }> = data?.data ?? []
+  const models: { id: string }[] = data?.data ?? []
   return models[0]?.id ?? null
 }
 
@@ -163,10 +162,7 @@ function AIProviderTab({
   settings: UnifiedSettings
   onSave: (patch: Partial<UnifiedSettings>) => Promise<boolean>
 }) {
-  const globalIsDemo = isDemoProvider(settings)
-  const current = settings.textLLMProvider ?? 'use-global'
-
-  const [provider, setProvider] = useState(current)
+  const [provider, setProvider] = useState<'local' | 'browser'>(settings.textLLMProvider ?? 'local')
   const [endpoint, setEndpoint] = useState(settings.textLLMEndpoint ?? settings.localEndpointUrl ?? 'http://localhost:1234/v1')
   const [model, setModel] = useState(settings.textLLMModel ?? settings.currentLocalModel ?? '')
   const [saving, setSaving] = useState(false)
@@ -198,7 +194,7 @@ function AIProviderTab({
   const handleSave = async () => {
     setSaving(true)
     const ok = await onSave({
-      textLLMProvider: provider as UnifiedSettings['textLLMProvider'],
+      textLLMProvider: provider,
       textLLMEndpoint: provider === 'local' ? (endpoint || undefined) : undefined,
       // Persist undefined (not '') when no model is chosen, so the config resolver's
       // fallback to the global currentLocalModel actually kicks in - see adapter.ts.
@@ -211,55 +207,19 @@ function AIProviderTab({
     if (ok) await returnToOpener()
   }
 
-  const globalLabel = globalIsDemo
-    ? 'Use global setting (⚠️ Demo - your text goes to a shared server)'
-    : `Use global setting (currently: ${settings.apiProvider})`
-
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="font-medium text-base mb-1">Text AI Provider</h2>
+        <h2 className="font-medium text-base mb-1">AI provider for “Answer from these files”</h2>
         <p className="text-xs text-muted-foreground">
-          Choose which LLM handles text-only features. This setting is independent of the
-          navigation agent's (multimodal) provider.
+          Asking a question sends excerpts of your files to this model, so only private options are
+          offered: a server on your computer, or a model running inside the browser. Searching never
+          needs an AI provider.
         </p>
       </div>
 
-      {/* Privacy notice */}
-      {globalIsDemo && (current === 'use-global' || provider === 'use-global') && (
-        <div className="rounded-lg border border-amber-300 bg-amber-50/50 dark:border-amber-700 dark:bg-amber-950/20 p-4 text-sm space-y-1">
-          <p className="font-medium text-amber-700 dark:text-amber-400">⚠️ Privacy warning</p>
-          <p className="text-amber-700/80 dark:text-amber-400/80 text-xs">
-            The demo provider sends your text to a shared server.
-            Select a local or browser provider below to keep it private.
-          </p>
-        </div>
-      )}
-
       {/* Provider selector */}
       <div className="space-y-3">
-        {/* Use global */}
-        <label className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${provider === 'use-global' ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'}`}>
-          <input
-            type="radio"
-            name="textLLM"
-            value="use-global"
-            checked={provider === 'use-global'}
-            onChange={() => setProvider('use-global')}
-            className="mt-0.5"
-          />
-          <div>
-            <p className={`font-medium ${globalIsDemo ? 'text-amber-600 dark:text-amber-400' : ''}`}>
-              {globalLabel}
-            </p>
-            {!globalIsDemo && (
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Inherits the provider configured in Page Agent settings.
-              </p>
-            )}
-          </div>
-        </label>
-
         {/* Local LLM */}
         <label className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${provider === 'local' ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'}`}>
           <input

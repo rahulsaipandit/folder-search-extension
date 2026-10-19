@@ -12,6 +12,7 @@ import {
 	selectionBytes,
 } from '@/folder-search/modelCatalog'
 import type { FolderRecord, ModelDtype } from '@/folder-search/types'
+import { SUPPORTED_UI_LANGUAGES, type SupportedUILanguage, UI_LANGUAGE_NATIVE_NAMES, useI18n } from '@/i18n'
 
 import { ModelProgress } from './Setup'
 import { useFolderSearch } from './useFolderSearch'
@@ -122,6 +123,7 @@ function FolderCard({ folder, fs }: { folder: FolderRecord; fs: ReturnType<typeo
 export function ManagePage() {
 	const fs = useFolderSearch()
 	const { settings, model, download, screen } = fs
+	const { language, explicitLanguage, setLanguage, t } = useI18n()
 	const [usage, setUsage] = useState<{ used: number; quota: number } | null>(null)
 
 	useEffect(() => {
@@ -230,6 +232,22 @@ export function ManagePage() {
 				>
 					<FolderPlus className="size-3.5" /> Add another folder
 				</Button>
+			</Section>
+
+			<Section title={t('settings.interfaceLanguage')}>
+				<select
+					aria-label={t('settings.interfaceLanguage')}
+					className="h-8 w-full max-w-xs rounded-md border border-input bg-background px-2 text-xs"
+					value={explicitLanguage ?? ''}
+					onChange={e => setLanguage((e.target.value || undefined) as SupportedUILanguage | undefined)}
+				>
+					<option value="">{t('settings.interfaceLanguageAuto', { language: UI_LANGUAGE_NATIVE_NAMES[language] })}</option>
+					{SUPPORTED_UI_LANGUAGES.map(l => (
+						<option key={l} value={l}>
+							{UI_LANGUAGE_NATIVE_NAMES[l]}
+						</option>
+					))}
+				</select>
 			</Section>
 
 			<Section title="Storage">

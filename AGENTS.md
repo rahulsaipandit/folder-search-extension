@@ -125,147 +125,62 @@ const pageInfo = await this.pageController.getPageInfo()
 
 ## Extension Architecture (`packages/extension/`)
 
-The extension is built with WXT + React. Entry point: `src/entrypoints/sidepanel/App.tsx`.
+The extension **is Folder Search**: on-device semantic search over a folder the user picks. There is no agent chat, no content script and no web-page access. Built with WXT + React; the side panel renders `FolderSearch` only (`src/entrypoints/sidepanel/App.tsx`).
 
-### Two independent LLM provider settings — `apiProvider` vs. `textLLMProvider`
+The other workspace packages (`core`, `page-controller`, `ui`, `page-agent`, `memory`, …) are separate libraries. The extension does **not** depend on them; only `@page-agent/llms` is used (for Ask mode).
 
-`UnifiedSettings` (`src/shared/settings.ts`) carries **two separate provider selections** that
-must not be conflated:
-
-- `apiProvider` — the **navigation agent's** provider (multimodal: interprets page structure,
-  drives clicks/inputs). Set from the main Settings page.
-- `textLLMProvider` (+ `textLLMModel`/`textLLMEndpoint`) — an optional override for **text-only**
-  features that don't need multimodal/navigation capability: Executive Review Prep and any future
-  text-only skill. Set from the shared
-  `entrypoints/ai-provider-settings/main.tsx` page. When unset (`'use-global'`), these features
-  inherit `apiProvider`.
-
-Never resolve a text-only feature's LLM config from raw `settings.apiProvider` /
-`createLLMConfigFromProvider(settings)` directly — that ignores the override and reintroduces the
-bug where a provider configured for one text feature silently doesn't apply to another, even though
-both are "just text" features. Always go
-through `getTextLLMConfig(settings)` (`llm/providers/adapter.ts`) — directly, or via the
-`useScopedLLM` hook, which already wraps it and returns `LLM | null` (`null` = blocked, same
-demo-provider gate as the navigation agent). See `getTextLLMConfig`'s doc comment for the full
-decision table.
-
-### Extension Source Map
+### Source Map
 
 ```
 src/
-├── agent/                          # Browser automation engine
-│   ├── MultiPageAgent.ts           # Main agent class (extends PageAgentCore), multi-tab support
-│   ├── useAgent.ts                 # React hook — wires agent to UI (status, history, execute, stop)
-│   ├── RemotePageController.ts     # Orchestrates page interaction across content/background scripts
-│   ├── TabsController.ts           # Tab selection and switching
-│   ├── tabTools.ts                 # LLM tool definitions for tab actions
-│   └── constants.ts                # DEMO_BASE_URL, endpoint helpers
-│
-├── entrypoints/sidepanel/          # Main side panel UI
-│   ├── App.tsx                     # ⭐ Root component — view router + chat view
-│   ├── types.ts                    # View union type (chat | history | library | …)
-│   └── components/
-│       ├── AgentLibrary.tsx        # Skills grid (SPECIAL_SKILL_ROUTES table)
-│       ├── ActiveInstancesList.tsx # Live widget instance list with stop/delete controls
-│       ├── AgentDashboard.tsx      # Full-screen widget dashboard
-│       ├── HistoryAndFavorites.tsx # Session history + pinned prompts
-│       ├── HistoryDetail.tsx       # Single session detail with continue/retry
-│       ├── MemoryBrowser.tsx       # Browse/search cognitive memory entries
-│       ├── ExecutiveReviewPrep.tsx # Executive review analysis UI
-│       ├── AuspiciousTimes.tsx     # Muhurta slots widget
-│       ├── misc.tsx                # Logo, StatusDot, ActionPanel, EmptyState, MotionOverlay
-│       ├── RobotFace.tsx           # Animated avatar (AvatarState: off|passive|active-idle|…)
-│       └── AttachButton.tsx        # File attachment for chat input
-│
-├── entrypoints/                    # 20+ additional feature entry points (each has its own HTML)
-│   ├── hub/                        # Task management hub
-│   ├── calendar-assistant/         # Google Calendar auto-color-coding
-│   ├── executive-assistant/        # Full-screen org editor
-│   ├── financial-monitor/          # Stock/market watchlist
-│   ├── news-digest/                # AI news summary
-│   ├── dinner/                     # Recipe planner
-│   ├── svg-viewer/, color-selector/, url-tools/,
-│   │   epoch-converter/, markdown-viewer/   # Standalone dev tools
-│   └── mic-permission/             # Permission grant page
-│
-├── lib/                            # Shared utilities
-│   ├── widgetRuntime.ts            # Widget framework: defineWidget, createWidgetInstance, registerWidget
-│   ├── scheduledWidgets.ts         # GenericTaskWidget + ActionOptimizationWidget definitions
-│   ├── db.ts                       # Session persistence (IndexedDB via Dexie)
-│   ├── eventBus.ts                 # Cross-context message bus
-│   └── (web automation, storage, form-fill, metrics utils)
-│
-├── llm/                            # LLM provider integration
-│   ├── providers/adapter.ts        # Unified adapter: OpenAI | Anthropic | local | browser LLM.
-│   │                                 # Also getTextLLMConfig() — resolves the textLLMProvider override (see below)
-│   ├── useScopedLLM.ts             # React hook: LLM|null scoped to a component's lifecycle, resolved via
-│   │                                 # getTextLLMConfig (honors the textLLMProvider override, not just apiProvider)
-│   └── voice-chat/integration.ts   # VoiceChatIntegration (STT → agent → TTS)
-│
-├── memory/                         # Extension-side memory bridge
-│   ├── orchestrator.ts             # Coordinates recall, consolidation, and inference
-│   └── inferenceAdapter.ts         # Queries @page-agent/memory from extension context
-│
-├── actions/impl/                    # 15 built-in agent actions (pageSummarizer, calculator, …)
-├── browser-ml/                     # On-device ML: embeddings, vector search, UMAP, HDBSCAN,
-│   │                                 # AND a separate off-main-thread WebLLM engine for RAG
-└── accessListControl/              # Policy engine for site allow/block rules
+├── folder-search/                  # Everything Folder Search (see below)
+├── browser-ml/
+│   ├── gemma-embeddings.ts         # EmbeddingGemma 2 via transformers.js (offscreen only)
+│   └── offscreen-bridge.ts         # sendToOffscreen(): typed message passing with cold-start retry
+├── entrypoints/
+│   ├── background.ts               # Only opens the side panel from the toolbar icon
+│   ├── offscreen/                  # Runs the model, extractors, indexer, search (WORKERS reason only)
+│   ├── sidepanel/                  # App.tsx → components/FolderSearch/*
+│   ├── folder-search/              # Same UI as a full tab (wide gallery)
+│   ├── folder-search-settings/     # Manage page (models, folders, excludes, storage)
+│   ├── ai-provider-settings/       # Private LLM for Ask mode (local server or in-browser)
+│   ├── browser-llm-settings/       # Download a WebLLM model for Ask mode
+│   └── licenses.html
+├── accessListControl/              # Supported, unit-tested tab/host policy engine (not wired in; design §14.7)
+├── i18n/                           # I18nProvider + locales (en-US, de-DE, zh-CN, zh-HK); picker on the Manage page
+├── llm/                            # getTextLLMConfig() + useScopedLLM() for Ask mode
+├── shared/                         # settings.ts (Ask-mode LLM only) + storageAdapter.ts
+├── lib/                            # parseHtmlToMarkdown (HTML extractor), theme, utils
+└── components/                     # ErrorBoundary + shadcn ui primitives
 ```
 
-### Adding a New Skill to Agent Library
+### Permissions and privacy rules
 
-1. Add entry to `SPECIAL_SKILL_ROUTES` in [AgentLibrary.tsx](packages/extension/src/entrypoints/sidepanel/components/AgentLibrary.tsx) with `panelView` or `tabUrl`
-2. Add skill object to the `skills` array in the same file
-3. If it opens a panel view, add the view name to the `View` union in [types.ts](packages/extension/src/entrypoints/sidepanel/types.ts) and handle it in [App.tsx](packages/extension/src/entrypoints/sidepanel/App.tsx)
-4. If it opens a new tab, add the HTML entry point in `src/entrypoints/`
+- Manifest permissions are exactly `sidePanel`, `storage`, `offscreen`. No `host_permissions`, no `tabs`/`scripting`/`activeTab`, no content scripts, no `externally_connectable`. Adding any of these changes the Web Store review and the privacy story; justify it in the design doc first.
+- The offscreen document is created with the `WORKERS` reason only (reasons are fixed at creation). Do not add `USER_MEDIA`/`AUDIO_PLAYBACK`.
+- No analytics, no remote config, no network traffic except the user-approved model download.
+- `accessListControl/` is kept and supported: any future feature that reads a web tab or host must call `PolicyEngine.evaluate()` first and treat BLOCK as final (design §14.7).
+- UI strings go through `t()` and must exist in all four locales (`i18n/locales.test.ts` enforces parity).
+- Ask mode sends file excerpts to its LLM, so only **private providers** exist (`local` server or `browser` WebLLM). Do not add cloud providers or a shared demo endpoint.
 
-### Tab Access Policy Engine (`packages/extension/src/accessListControl/`)
+### On-device ML — must run in the offscreen document
 
-Fail-closed policy gate deciding whether the agent may act on a given tab/host. Files:
-
-| File               | Role                                                                                                                                                                  |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `policy-engine.ts` | `PolicyEngine.evaluate()` — orchestrates the decision pipeline                                                                                                        |
-| `policy-loader.ts` | `DEFAULT_DENYLIST` / `DEFAULT_ALLOWLIST` patterns + `mergePolicyConfig()`                                                                                             |
-| `rules-engine.ts`  | `RulesEngine` — static allowlist/denylist pattern matching                                                                                                            |
-| `matcher.ts`       | Hostname normalization + wildcard (`*.example.com`) matching                                                                                                          |
-| `plugins.ts`       | Heuristic plugins: `PasswordFieldPlugin`, `SensitiveFieldPlugin`, `KeywordPlugin` (scan live DOM/text for password fields, sensitive input names, sensitive keywords) |
-| `types.ts`         | `PolicyConfig`, `PolicyContext`, `Decision`, `PolicyPlugin`, etc.                                                                                                     |
-
-**Evaluation order** (`PolicyEngine.evaluate`): 1) denylist → BLOCK, 2) allowlist match → **skips plugin heuristics entirely** and returns ALLOW (a deliberate carve-out — e.g. `*.archive.ph`/`*.archive.today` are allowlisted because archived finance/news pages incidentally contain terms like "credit card"), 3) otherwise run plugins — any plugin BLOCK wins, 4) optional user-gesture gate, 5) ALLOW.
-
-Since allowlisting bypasses plugins, only add a host to `DEFAULT_ALLOWLIST` when the _page itself_ is trusted, not just the domain reputation.
-
-`KeywordPlugin` requires **2+ distinct sensitive terms** in the text sample before blocking (single incidental mentions like one "tax return" reference are not enough) — see `SENSITIVE_TERM_PATTERNS` in `plugins.ts`.
+The embedding model, ONNX Runtime and pdf.js load Workers/WASM that the manifest CSP (`wxt.config.js`) only allows from the packed extension's own origin, in practice the offscreen document. **Never import `gemma-embeddings.ts`, `indexer.ts`, `searchIndex.ts`, `modelManager.ts` or `extractors/{pdf,media,text}.ts` from UI code.** UI code calls `folder-search/bridge.ts`. ONNX Runtime is served locally from `public/ort/` (copied by `copyOrtAssets` in `wxt.config.js`); transformers.js's default CDN/`blob:` loading is blocked by the CSP.
 
 ### Folder Search (`src/folder-search/`) — local, read-only visual RAG
 
+
 Design: `packages/extension/docs/designLocalFolderSearch.md`. User picks a folder via the File System Access API (`mode: 'read'` only), it is indexed on-device with EmbeddingGemma 2 (text/vision/audio in one 768-d space, Matryoshka-truncated to `settings.dim`), and queried through one box. Nothing is uploaded; the only network traffic is the user-approved model download.
 
+- **Folder Search is the whole product.** No agent chat exists; do not add entry points for one. See design doc §14.6.
 - **Split by context.** UI/pickers/permission/IndexedDB reads live in the side panel (`entrypoints/sidepanel/components/FolderSearch/`, plus `entrypoints/folder-search/` tab and `folder-search-settings/` Manage page). Everything heavy (embedder, extractors, indexer, vector matrices) runs in the **offscreen document** via `folder-search/engine.ts` (`offscreen:folder:*` messages) and is called from the UI only through `folder-search/bridge.ts`. Never import `browser-ml/gemma-embeddings.ts`, `indexer.ts`, `searchIndex.ts`, `modelManager.ts` or `extractors/{pdf,media,text}.ts` from UI code (CSP + bundle weight). `modelCatalog.ts`, `events.ts`, `types.ts`, `settings.ts`, `db.ts` and the pure helpers are safe for the UI.
 - **Handles are never sent through `chrome.runtime`.** The `FileSystemDirectoryHandle` is stored in IndexedDB (`folderSearch` DB, `idb`); the offscreen doc reads it from there. Progress goes the other way as `folder:event` broadcasts (`events.ts`).
 - **Pure, tested logic:** `classify.ts` (skip rules, secrets), `chunker.ts`, `diff.ts` (incremental rescan), `keywords.ts` (BM25-style + exact-string detection), `ranking.ts` (vector matrix, per-modality z-score calibration, RRF fusion, grouping), `merge.ts`, `walker.ts`, `ask.ts`, `extractors/pure.ts`. Keep new ranking/skip behaviour in these files with tests.
 - **Index validity.** `meta` stores an `IndexSignature` (model id, dtype, dim, schema). A mismatch makes `Indexer.run` throw `REINDEX_REQUIRED`; the UI offers an explicit re-index. Toggling the vision/audio encoders alone does not invalidate vectors.
 - **ID conventions** (`db.ts`): chunk ids `${fileId}#${idx}`, page images `${fileId}#p${page}`, filename postings `${fileId}#name`, audio/video units `${fileId}@${startSec}`. File ids may contain `#`/`@`; always split with `lastIndexOf` (see `chunkFileOf`/`unitFileOf` in `searchIndex.ts`).
-- **Ask mode** is optional and must resolve its LLM via `useScopedLLM` (text-only feature, honors `textLLMProvider`). Retrieval must keep working with no LLM configured.
+- **Ask mode** is optional and resolves its LLM through `getTextLLMConfig()` / `useScopedLLM` (private providers only). Retrieval must keep working with no LLM configured.
 - `calibrate` priors in `ranking.ts` (`PRIOR_STATS`, `MIN_CALIBRATED`) are unmeasured starting points; tune them on a labeled sample before trusting thresholds.
 
-### Adding a Widget
-
-Create a widget via `defineWidget()` in `src/lib/widgetRuntime.ts`, then call `registerWidget()` in App.tsx's `useEffect`.
-
-### On-device ML (`packages/extension/src/browser-ml/`) — must run in the offscreen document
-
-`browser-ml/embeddings.ts` (`BrowserEmbeddings`, `@huggingface/transformers`) and the vector-search/clustering modules load a Worker + WASM/WebGPU runtime. **Never call `embeddings.initialize()`/`.embed()` (or the vector-search/clustering classes) directly from the side panel, a content script, or any other extension page.** The manifest's `content_security_policy.extension_pages` (`wxt.config.js`) blocks `worker-src`/`script-src` for anything not served same-origin from the packed extension, and side panel / content-script contexts hit this immediately.
-
-The fix already exists — route through the Chrome offscreen document instead:
-
-| File                             | Role                                                                                                                                                                                                                                                                                                                                           |
-| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `browser-ml/offscreen-bridge.ts` | Caller-side API: `offscreenEmbed()`, `offscreenVectorSearch()`, `offscreenBuildVectorIndex()`, `offscreenClusterUMAP()`, `offscreenClusterHDBSCAN()`. Lazily creates the offscreen document (`chrome.offscreen.createDocument`) and message-passes into it. **Call these, not the underlying classes, from side panel / content-script code.** |
-| `entrypoints/offscreen/main.ts`  | Where `embeddings`, `BrowserVectorSearch`, `BrowserClustering` actually run. `onMessage` listener dispatches `offscreen:embed`, `offscreen:vector:*`, and `offscreen:cluster:*`.                                                                                                                                                            |
-
-If you need cosine similarity or other pure-math helpers on embedding vectors outside the offscreen doc, write a small local function (`offscreenEmbed` already returns plain `number[][]`) rather than importing `embeddings.ts` just for a static method — that import alone pulls the WASM/worker pipeline into whatever bundle you're in.
 
 ## Adding New Features
 
@@ -284,7 +199,7 @@ If you need cosine similarity or other pure-math helpers on embedding vectors ou
 ## Testing
 
 - **Test value**: Do not add redundant tests or directly translate implementation code into assertions. Test meaningful behavior and realistic failure modes.
-- **Framework**: Vitest for unit tests; Playwright E2E in `packages/e2e/` (loads the built extension from `packages/extension/.output/dev/chrome-mv3-dev`; run `npm run test:build -w @page-agent/e2e` to rebuild and test)
+- **Framework**: Vitest for unit tests; Playwright E2E in `packages/e2e/` (loads the fake-embedder build from `packages/extension/.output/e2e/chrome-mv3-dev`; run `npm run test:build -w @page-agent/e2e` to rebuild and test; the package exposes `test:e2e`, not `test`, so root `npm test` and CI skip it)
 - **Location**: co-located, `src/foo.test.ts` next to `src/foo.ts`
 - **Coverage today**: `packages/llms` only — other packages will follow incrementally
 - **Adding tests to a new package**: create `vitest.config.ts` in the package and add a `"test": "vitest run"` script. Root `npm test` and `node scripts/ci.js` pick it up through npm workspaces.

@@ -5,7 +5,7 @@
     "type": "module",
     "scripts": {
         "build:ext": "node build-extension.mjs",
-        "test": "playwright test",
+        "test:e2e": "playwright test",
         "test:build": "node build-extension.mjs && playwright test"
     },
     "devDependencies": {

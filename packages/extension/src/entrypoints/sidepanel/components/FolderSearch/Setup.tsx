@@ -1,4 +1,4 @@
-import { AlertTriangle, FolderOpen, Loader2, Lock, Monitor, Search, ShieldCheck, type LucideIcon } from 'lucide-react'
+import { AlertTriangle, Download, FolderOpen, Loader2, Lock, Monitor, Search, ShieldCheck, type LucideIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -11,7 +11,7 @@ import {
 	formatBytes,
 	selectionBytes,
 } from '@/folder-search/modelCatalog'
-import type { FolderSearchSettings } from '@/folder-search/settings'
+import { DEFAULT_SETTINGS, type FolderSearchSettings } from '@/folder-search/settings'
 import type { FolderRecord, ModelDtype, ScanSummary } from '@/folder-search/types'
 
 function formatEta(sec: number | null): string {
@@ -40,6 +40,8 @@ const TRUST_POINTS: { icon: LucideIcon; title: string; body: string }[] = [
 
 export function Welcome({ onStart }: { onStart: () => void }) {
 	const [example, setExample] = useState<string | null>(null)
+	// Honest about the cost up front: the model is approved before any folder is picked (design §2.2).
+	const downloadSize = formatBytes(selectionBytes(DEFAULT_SETTINGS.selection))
 	return (
 		<div className="flex flex-1 flex-col">
 			<div className="flex-1 space-y-5 px-1 pt-3">
@@ -59,7 +61,7 @@ export function Welcome({ onStart }: { onStart: () => void }) {
 						className="flex items-center gap-2.5 rounded-xl border-[1.5px] bg-muted/50 px-3.5 py-3 text-sm text-muted-foreground"
 					>
 						<Search className="size-4 shrink-0" aria-hidden />
-						<span className="truncate">{example ? `“${example}”` : 'Choose a folder to start searching'}</span>
+						<span className="truncate">{example ? `“${example}”` : 'Set up to start searching'}</span>
 					</div>
 					<div className="flex flex-wrap gap-2" role="group" aria-label="Example searches">
 						{EXAMPLE_QUERIES.map(q => (
@@ -95,9 +97,11 @@ export function Welcome({ onStart }: { onStart: () => void }) {
 					className="h-11 w-full gap-2 rounded-xl bg-[#5b4ef0] text-sm font-semibold text-white hover:bg-[#5b4ef0]/90 active:scale-[0.985] dark:bg-[#8b80ff] dark:text-[#14121f]"
 					onClick={onStart}
 				>
-					<FolderOpen className="size-4" aria-hidden /> Choose a folder
+					<Download className="size-4" aria-hidden /> Set up (one-time {downloadSize} download)
 				</Button>
-				<p className="mt-2 text-center text-[13px] text-muted-foreground">Files are never uploaded or changed.</p>
+				<p className="mt-2 text-center text-[13px] text-muted-foreground">
+					You’ll approve the download first, then choose a folder. Files are never uploaded or changed.
+				</p>
 			</div>
 		</div>
 	)

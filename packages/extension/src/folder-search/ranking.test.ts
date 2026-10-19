@@ -132,3 +132,15 @@ describe('leadingSection', () => {
 		expect(leadingSection(4, null, false, false)).toBe('media')
 	})
 })
+
+describe('VectorMatrix.addIfAbsent', () => {
+	it('ignores a replayed id and forgets ids that were removed', () => {
+		const m = new VectorMatrix(2)
+		expect(m.addIfAbsent('a', unit(1, 0))).toBe(true)
+		expect(m.addIfAbsent('a', unit(0, 1))).toBe(false)
+		expect(m.size).toBe(1)
+		m.removeWhere(id => id === 'a')
+		expect(m.has('a')).toBe(false)
+		expect(m.addIfAbsent('a', unit(0, 1))).toBe(true)
+	})
+})

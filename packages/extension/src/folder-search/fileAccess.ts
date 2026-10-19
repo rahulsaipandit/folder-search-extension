@@ -68,7 +68,12 @@ export async function readFolderFile(folder: FolderRecord, relPath: string): Pro
 	return resolveFile(folder.handle as never, relPath)
 }
 
-const NATIVE_VIEWABLE = /\.(pdf|txt|md|markdown|csv|json|html?|xml|png|jpe?g|webp|gif|bmp|avif|mp3|wav|ogg|m4a|mp4|webm)$/i
+/**
+ * Types the browser renders inertly. HTML, XML and SVG are deliberately absent: a blob URL created
+ * on an extension page belongs to the extension's origin, so opening a user's .html there would run
+ * its scripts as the extension. Those files are saved as a download instead.
+ */
+const NATIVE_VIEWABLE = /\.(pdf|txt|md|markdown|csv|json|png|jpe?g|webp|gif|bmp|avif|mp3|wav|ogg|m4a|mp4|webm)$/i
 
 /**
  * Opens a result: renders natively in a tab when the browser can (PDFs at `#page=N`, media at

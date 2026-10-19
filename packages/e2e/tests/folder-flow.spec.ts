@@ -33,7 +33,7 @@ test('setup, index a folder, and search it', async ({ context, extensionId }) =>
 	const page = await context.newPage()
 	await page.goto(`chrome-extension://${extensionId}/folder-search.html`)
 
-	await page.getByRole('button', { name: 'Get started' }).click()
+	await page.getByRole('button', { name: /Set up/ }).click()
 	await expect(page.getByText('Step 1 of 3')).toBeVisible()
 	await page.getByRole('button', { name: /Download/ }).click()
 

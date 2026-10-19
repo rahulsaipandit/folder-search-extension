@@ -1,8 +1,8 @@
 /**
  * UI locale resources for the extension sidepanel.
  *
- * This is separate from `@page-agent/ui`'s `I18n` (which localizes the page-agent Panel's
- * own strings) and from `UnifiedSettings.language` (the voice/STT language preference).
+ * Separate from `@page-agent/ui`'s own `I18n`, which localizes that package's Panel.
+ * The language is chosen on the Manage page and stored as `UnifiedSettings.uiLanguage`.
  * `en-US` is the base/reference language — every other locale must match its key structure.
  */
 

@@ -40,6 +40,7 @@ import {
 import { PDF_FIRST_PAGES, PDF_MAX_PAGES, openPdf } from './extractors/pdf'
 import { fingerprint } from './extractors/pure'
 import { termFrequencies } from './keywords'
+import { RemovalContext } from './removal'
 import { SOUNDTRACK_MAX_BYTES, VIDEO_MAX_SEGMENTS } from './videoPlan'
 import { ensureLoaded } from './modelManager'
 import type { SearchIndex } from './searchIndex'
@@ -190,6 +191,11 @@ export class Indexer {
 		this.progress = { ...emptyProgress(folderId), phase: 'scanning', startedAt: Date.now() }
 		this.running = this.run(folderId, opts)
 			.catch(e => {
+				// Cancelling while the folder is still being scanned lands here; it is not a failure.
+				if (e instanceof CancelledError) {
+					this.update({ phase: 'cancelled', currentFile: null }, true)
+					return
+				}
 				const message = e instanceof Error ? e.message : String(e)
 				console.error('[folder-search] indexing failed', e)
 				this.update({ phase: 'error', message }, true)
@@ -313,16 +319,18 @@ export class Indexer {
 		for (const m of known.filter(isMarker)) await deleteFileCascade(m.fileId)
 		const knownMap = new Map(known.filter(f => !isMarker(f)).map(f => [f.relPath, f]))
 		const diff = diffScan(knownMap, scanned, { retryErrors: opts.retryErrors })
+		// Built once: looking dependents up per removed file would re-read the whole inventory each time.
+		const removal = new RemovalContext(known)
 		for (const relPath of diff.deleted) {
 			const rec = knownMap.get(relPath)!
-			await this.removeFile(rec)
+			await this.removeFile(rec, removal)
 		}
 		const byPath = new Map(scanned.map(s => [s.relPath, s]))
 		const writes: FileRecord[] = []
 		for (const s of [...diff.added, ...diff.changed]) {
 			const meta = byPath.get(s.relPath)!
 			const old = knownMap.get(s.relPath)
-			if (old) await this.removeFile(old)
+			if (old) await this.removeFile(old, removal)
 			writes.push({
 				fileId: fileIdOf(folderId, s.relPath),
 				folderId,
@@ -399,8 +407,9 @@ export class Indexer {
 	}
 
 	/** Deletes a file's index data; byte-identical duplicates that pointed at it become pending again. */
-	private async removeFile(rec: FileRecord): Promise<void> {
-		const dependents = (await getFiles(rec.folderId)).filter(f => f.duplicateOf === rec.fileId)
+	private async removeFile(rec: FileRecord, removal: RemovalContext): Promise<void> {
+		const dependents = removal.dependentsOf(rec.fileId)
+		removal.markRemoved(rec.fileId)
 		await deleteFileCascade(rec.fileId)
 		this.deps.index.forgetFile(rec.folderId, rec.fileId)
 		if (dependents.length) {

@@ -20,6 +20,19 @@ export class VectorMatrix {
 		return this.count
 	}
 
+	private idSet = new Set<string>()
+
+	has(id: string): boolean {
+		return this.idSet.has(id)
+	}
+
+	/** Adds the vector unless `id` is already present (updates may be replayed). Returns whether it was added. */
+	addIfAbsent(id: string, vec: Float32Array): boolean {
+		if (this.idSet.has(id)) return false
+		this.add(id, vec)
+		return true
+	}
+
 	add(id: string, vec: Float32Array): void {
 		if (vec.length !== this.dim) throw new Error(`Vector has ${vec.length} dims, index expects ${this.dim}`)
 		if ((this.count + 1) * this.dim > this.data.length) {
@@ -29,6 +42,7 @@ export class VectorMatrix {
 		}
 		this.data.set(vec, this.count * this.dim)
 		this.ids.push(id)
+		this.idSet.add(id)
 		this.count++
 	}
 
@@ -45,6 +59,7 @@ export class VectorMatrix {
 		const removed = this.count - w
 		this.ids.length = 0
 		this.ids.push(...keptIds)
+		this.idSet = new Set(keptIds)
 		this.count = w
 		return removed
 	}

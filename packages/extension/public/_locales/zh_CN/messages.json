@@ -3,7 +3,7 @@
         "message": "Page Agent Ext"
     },
     "extDescription": {
-        "message": "AI 驱动的浏览器自动化助手，用自然语言控制网页。"
+        "message": "用自然语言描述并搜索你自己的文件。索引与搜索全部在本机运行，不会上传任何内容。"
     },
     "extActionTitle": {
         "message": "打开 Page Agent"

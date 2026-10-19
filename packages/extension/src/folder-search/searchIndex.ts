@@ -7,7 +7,6 @@ import { gemma } from '@/browser-ml/gemma-embeddings'
 
 import { buildQueryInput } from './chunker'
 import {
-	countChunks,
 	getChunk,
 	getFiles,
 	getPostings,
@@ -56,13 +55,16 @@ interface FolderIndex {
 	files: Map<string, FileRecord>
 	/** primary fileId → byte-identical duplicates (design §11). */
 	duplicates: Map<string, string[]>
-	chunkCount: number
 }
 
 export class SearchIndex {
 	private folders = new Map<string, FolderIndex>()
 	private loading = new Map<string, Promise<FolderIndex>>()
 	private dim: number
+	/** Bumped when cached data becomes invalid, so an in-flight load knows to start over. */
+	private epoch = 0
+	/** Index updates that arrived while a folder was loading; replayed in order once it finishes. */
+	private pending = new Map<string, ((idx: FolderIndex) => void)[]>()
 
 	constructor(dim: number) {
 		this.dim = dim
@@ -73,11 +75,13 @@ export class SearchIndex {
 		if (dim !== this.dim) {
 			this.dim = dim
 			this.folders.clear()
+			this.epoch++
 		}
 	}
 
 	invalidate(folderId: string): void {
 		this.folders.delete(folderId)
+		this.epoch++
 	}
 
 	private async ensure(folderId: string): Promise<FolderIndex> {
@@ -92,22 +96,43 @@ export class SearchIndex {
 	}
 
 	private async load(folderId: string): Promise<FolderIndex> {
-		const idx: FolderIndex = {
-			dim: this.dim,
-			chunks: new VectorMatrix(this.dim),
-			pages: new VectorMatrix(this.dim),
-			images: new VectorMatrix(this.dim),
-			units: new VectorMatrix(this.dim),
-			files: new Map(),
-			duplicates: new Map(),
-			chunkCount: await countChunks(folderId),
+		for (;;) {
+			const epoch = this.epoch
+			// Start recording updates before reading, so rows written while we scan are never lost.
+			this.pending.set(folderId, [])
+			const idx: FolderIndex = {
+				dim: this.dim,
+				chunks: new VectorMatrix(this.dim),
+				pages: new VectorMatrix(this.dim),
+				images: new VectorMatrix(this.dim),
+				units: new VectorMatrix(this.dim),
+				files: new Map(),
+				duplicates: new Map(),
+			}
+			try {
+				for (const f of await getFiles(folderId)) this.trackFile(idx, f)
+				await scanChunks(folderId, c => this.addChunkTo(idx, c))
+				await scanImageVectors(folderId, v => this.addImageTo(idx, v))
+				await scanMediaUnits(folderId, u => this.addUnitTo(idx, u))
+			} catch (e) {
+				this.pending.delete(folderId)
+				throw e
+			}
+			// Invalidated mid-load (folder removed, dimension changed): what we read may be stale.
+			if (epoch !== this.epoch) continue
+			// Replay and publish in the same tick, so no update can fall between the two.
+			for (const op of this.pending.get(folderId) ?? []) op(idx)
+			this.pending.delete(folderId)
+			this.folders.set(folderId, idx)
+			return idx
 		}
-		for (const f of await getFiles(folderId)) this.trackFile(idx, f)
-		await scanChunks(folderId, c => this.addChunkTo(idx, c))
-		await scanImageVectors(folderId, v => this.addImageTo(idx, v))
-		await scanMediaUnits(folderId, u => this.addUnitTo(idx, u))
-		this.folders.set(folderId, idx)
-		return idx
+	}
+
+	/** Applies an update now if the folder is loaded, queues it if a load is in flight, else drops it (the next load reads the DB). */
+	private apply(folderId: string, op: (idx: FolderIndex) => void): void {
+		const idx = this.folders.get(folderId)
+		if (idx) op(idx)
+		else this.pending.get(folderId)?.push(op)
 	}
 
 	// ── incremental updates from the indexer ───────────────────────────────────────────────
@@ -122,38 +147,36 @@ export class SearchIndex {
 
 	private addChunkTo(idx: FolderIndex, c: ChunkRecord): void {
 		if (c.embedding.length !== idx.dim) return
-		;(c.source === 'page-image' ? idx.pages : idx.chunks).add(c.chunkId, c.embedding)
+		;(c.source === 'page-image' ? idx.pages : idx.chunks).addIfAbsent(c.chunkId, c.embedding)
 	}
 	private addImageTo(idx: FolderIndex, v: ImageVectorRecord): void {
-		if (v.embedding.length === idx.dim) idx.images.add(v.fileId, v.embedding)
+		if (v.embedding.length === idx.dim) idx.images.addIfAbsent(v.fileId, v.embedding)
 	}
 	private addUnitTo(idx: FolderIndex, u: MediaUnitRecord): void {
-		if (u.embedding.length === idx.dim) idx.units.add(u.unitId, u.embedding)
+		if (u.embedding.length === idx.dim) idx.units.addIfAbsent(u.unitId, u.embedding)
 	}
 
-	/** No-ops when the folder is not loaded yet; it will read the new rows from the DB on load. */
 	noteFile(f: FileRecord): void {
-		const idx = this.folders.get(f.folderId)
-		if (idx) this.trackFile(idx, f)
+		this.apply(f.folderId, idx => this.trackFile(idx, f))
 	}
 	noteChunks(folderId: string, chunks: ChunkRecord[]): void {
-		const idx = this.folders.get(folderId)
-		if (!idx) return
-		for (const c of chunks) this.addChunkTo(idx, c)
-		idx.chunkCount += chunks.length
+		this.apply(folderId, idx => {
+			for (const c of chunks) this.addChunkTo(idx, c)
+		})
 	}
 	noteImage(v: ImageVectorRecord): void {
-		const idx = this.folders.get(v.folderId)
-		if (idx) this.addImageTo(idx, v)
+		this.apply(v.folderId, idx => this.addImageTo(idx, v))
 	}
 	noteUnits(folderId: string, units: MediaUnitRecord[]): void {
-		const idx = this.folders.get(folderId)
-		if (idx) for (const u of units) this.addUnitTo(idx, u)
+		this.apply(folderId, idx => {
+			for (const u of units) this.addUnitTo(idx, u)
+		})
 	}
 	forgetFile(folderId: string, fileId: string): void {
-		const idx = this.folders.get(folderId)
-		if (!idx) return
-		idx.chunkCount -= idx.chunks.removeWhere(id => chunkFileOf(id) === fileId)
+		this.apply(folderId, idx => this.forgetFileIn(idx, fileId))
+	}
+	private forgetFileIn(idx: FolderIndex, fileId: string): void {
+		idx.chunks.removeWhere(id => chunkFileOf(id) === fileId)
 		idx.pages.removeWhere(id => chunkFileOf(id) === fileId)
 		idx.images.removeWhere(id => id === fileId)
 		idx.units.removeWhere(id => unitFileOf(id) === fileId)
@@ -253,7 +276,7 @@ export class SearchIndex {
 		await addVector(idx.pages, 'text→image', PAGE_K)
 
 		const kwHits = terms.length
-			? scoreKeywords(terms, await getPostings(opts.folderId, terms), { n: Math.max(1, idx.chunkCount) }).slice(0, KEYWORD_K)
+			? scoreKeywords(terms, await getPostings(opts.folderId, terms), { n: Math.max(1, idx.chunks.size) }).slice(0, KEYWORD_K)
 			: []
 		const filenameHits = new Map<string, string[]>()
 		for (const h of kwHits) {
@@ -374,7 +397,7 @@ export class SearchIndex {
 		if (!terms.length) return []
 		const postings = await getPostings(opts.folderId, terms)
 		const out: MediaHit[] = []
-		for (const hit of scoreKeywords(terms, postings, { n: Math.max(1, idx.chunkCount) }).slice(0, KEYWORD_K)) {
+		for (const hit of scoreKeywords(terms, postings, { n: Math.max(1, idx.chunks.size) }).slice(0, KEYWORD_K)) {
 			if (!hit.chunkId.endsWith('#name')) continue
 			const f = idx.files.get(hit.chunkId.slice(0, -'#name'.length))
 			if (!f || !inScope(f.fileId)) continue

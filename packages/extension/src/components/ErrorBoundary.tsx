@@ -2,6 +2,7 @@ import { AlertTriangle, Eraser, RotateCcw } from 'lucide-react'
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 
 import { Button } from '@/components/ui/button'
+import { STORAGE_KEYS } from '@/shared/settings'
 
 interface Props {
 	children: ReactNode
@@ -28,7 +29,7 @@ export class ErrorBoundary extends Component<Props, State> {
 	}
 
 	handleResetConfig = async () => {
-		await chrome.storage.local.remove(['llmConfig', 'language', 'advancedConfig'])
+		await chrome.storage.local.remove([STORAGE_KEYS.SETTINGS])
 		window.location.reload()
 	}
 
@@ -47,7 +48,7 @@ export class ErrorBoundary extends Component<Props, State> {
 				<div className="flex gap-2">
 					<Button variant="outline" size="sm" onClick={this.handleResetConfig}>
 						<Eraser className="size-3.5 mr-2" />
-						Reset Config
+						Reset Settings
 					</Button>
 					<Button variant="outline" size="sm" onClick={this.handleReload}>
 						<RotateCcw className="size-3.5 mr-2" />

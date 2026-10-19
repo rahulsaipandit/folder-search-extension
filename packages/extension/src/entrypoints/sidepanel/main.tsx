@@ -1,18 +1,13 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { I18nProvider } from '@/i18n'
 import { ThemeProvider } from '@/lib/theme/ThemeProvider'
 
-import { registerBuiltInActions } from '../../actions/impl'
 import App from './App'
 
-// Fork: dark/light theme support
-
 import '@/assets/index.css'
-
-// Fork: populate globalActionRegistry so actions invoked via globalActionExecutionEngine work in the sidepanel
-registerBuiltInActions()
 
 // Sync dark mode with system preference
 const syncDarkMode = () => {

@@ -4,7 +4,7 @@
         "audit": "RP_DONE"
     },
     "extDescription": {
-        "message": "AI-powered browser automation assistant. Automate work with natural language.",
+        "message": "Search your own files by describing them. Indexing and search run on your device; nothing is uploaded.",
         "audit": "RP_DONE"
     },
     "extActionTitle": {
