@@ -154,10 +154,22 @@ export class GemmaEmbedder {
 					})
 				}
 			}
-			const config: any = await AutoConfig.from_pretrained(GEMMA_MODEL_ID, { progress_callback })
+			// Small files first, in parallel: a bad or missing one fails in the first second instead of after
+			// the multi-hundred-MB weights. Only the model can leave something to dispose of.
+			const wantsProcessor = options.vision || options.audio
+			const [config, tokenizer, processor] = await Promise.all([
+				AutoConfig.from_pretrained(GEMMA_MODEL_ID, { progress_callback }) as Promise<any>,
+				AutoTokenizer.from_pretrained(GEMMA_MODEL_ID, { progress_callback }),
+				wantsProcessor ? AutoProcessor.from_pretrained(GEMMA_MODEL_ID, { progress_callback }) : Promise.resolve(null),
+			])
 			if (!options.vision) config.vision_config = null
 			if (!options.audio) config.audio_config = null
-			this.tokenizer = await AutoTokenizer.from_pretrained(GEMMA_MODEL_ID, { progress_callback })
+			this.tokenizer = tokenizer
+			if (processor) {
+				this.processor = processor
+				// Bounds per-image tokens so image batches obey the dispatch limit (see IMAGE_SOFT_TOKENS).
+				this.processor.image_processor.max_soft_tokens = IMAGE_SOFT_TOKENS
+			}
 			this.model = await (AutoModel as any).from_pretrained(GEMMA_MODEL_ID, {
 				config,
 				device: options.device,
@@ -169,11 +181,6 @@ export class GemmaEmbedder {
 				},
 				progress_callback,
 			})
-			if (options.vision || options.audio) {
-				this.processor = await AutoProcessor.from_pretrained(GEMMA_MODEL_ID, { progress_callback })
-				// Bounds per-image tokens so image batches obey the dispatch limit (see IMAGE_SOFT_TOKENS).
-				this.processor.image_processor.max_soft_tokens = IMAGE_SOFT_TOKENS
-			}
 			this.device = options.device
 			this.hasVision = options.vision
 			this.hasAudio = options.audio
